@@ -1,0 +1,37 @@
+{
+  "name": "vscode-extension-common",
+  "version": "1.0.0",
+  "description": "Library for building vscode extensions",
+  "main": "./out/src/EditorFunctions",
+  "scripts": {
+    "compile": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dakaraphi/vscode-extension-common.git"
+  },
+  "keywords": [
+    "vscode",
+    "extension",
+    "common",
+    "library"
+  ],
+  "author": "Dakara",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dakaraphi/vscode-extension-common/issues"
+  },
+  "homepage": "https://github.com/dakaraphi/vscode-extension-common#readme",
+  "engines": {
+      "vscode": "^1.11.0"
+  },  
+  "devDependencies": {
+      "typescript": "^2.2.1",
+      "vscode": "^1.1.0",
+      "mocha": "^2.3.3",
+      "@types/node": "^6.0.40",
+      "@types/mocha": "^2.2.32"
+  }  
+}
