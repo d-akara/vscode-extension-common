@@ -114,6 +114,72 @@ export function calculateLineSpacing(lineText: string, tabSize: number): number 
     return spacing;
 }
 
+export function calculateColumnFromCharIndex(lineText: string, column: number, tabSize: number): number {
+    let spacing = 0;
+    for(let index = 0; index < column; index++) {
+        if (lineText.charAt(index) === '\t') spacing += tabSize - spacing % tabSize;
+        else spacing++;
+    }
+    return spacing;
+}
+
+export function calculateCharIndexFromColumn(lineText: string, column: number, tabSize: number): number {
+    let spacing = 0;
+    for(let index = 0; index <= column; index++) {
+        if (spacing == column) return index;
+        if (lineText.charAt(index) === '\t') spacing += tabSize - spacing % tabSize;
+        else spacing++;
+    }
+    return spacing;
+}
+
+function isTextTouchingIndex(text: string, index: number) {
+    let textIsAdjacent = false;
+    if (index > 0) {
+        textIsAdjacent = text.charAt(index-1).trim().length > 0 ;
+    }
+    if (index < text.length - 1) {
+        textIsAdjacent = textIsAdjacent || text.charAt(index).trim().length > 0 ;
+    }
+    return textIsAdjacent;
+}
+
+export function isAllTextSpacedLeftOrRightOfPosition(textEditor: vscode.TextEditor, lineNumber: number, trueSpacing: number): boolean {
+    const line = textEditor.document.lineAt(lineNumber);
+    if (line.isEmptyOrWhitespace) return true;
+
+    const charIndex = calculateCharIndexFromColumn(line.text, trueSpacing, +textEditor.options.tabSize);
+    if (charIndex > line.text.length) return true;
+
+    const textRight = line.text.substring(charIndex, line.text.length - 1).trim();
+    const textLeft  = line.text.substring(0, charIndex).trim();
+    return (textRight.length > 0) !== (textLeft.length > 0) && (!isTextTouchingIndex(line.text, charIndex));
+}
+
+export function nextPositionUpWithTextRightOfPosition(textEditor: vscode.TextEditor, lineNumber: number, columnNumber: number) {
+    const trueSpacing = calculateColumnFromCharIndex(textEditor.document.lineAt(lineNumber).text, columnNumber, +textEditor.options.tabSize);
+    for(let index = lineNumber - 1; index >= 0; index--) {
+        const line = textEditor.document.lineAt(index);
+        if ( !isAllTextSpacedLeftOrRightOfPosition(textEditor, line.lineNumber, trueSpacing) ) {
+            return new vscode.Position(line.lineNumber, calculateCharIndexFromColumn(line.text, trueSpacing, +textEditor.options.tabSize));
+        }
+    }
+    return new vscode.Position(lineNumber, columnNumber);
+}
+
+export function nextPositionDownWithTextRightOfPosition(textEditor: vscode.TextEditor, lineNumber: number, columnNumber: number) {
+    const trueSpacing = calculateColumnFromCharIndex(textEditor.document.lineAt(lineNumber).text, columnNumber, +textEditor.options.tabSize);
+    const documentLength = textEditor.document.lineCount;
+    for(let index = lineNumber + 1; index < documentLength; index++) {
+        const line = textEditor.document.lineAt(index);
+        if ( !isAllTextSpacedLeftOrRightOfPosition(textEditor, line.lineNumber, trueSpacing) ) {
+            return new vscode.Position(line.lineNumber, calculateCharIndexFromColumn(line.text, trueSpacing, +textEditor.options.tabSize));
+        }
+    }
+    return new vscode.Position(lineNumber, columnNumber);
+}
+
+
 export function triggerWordHighlighting() {
     // Move the cursor so that vscode will reapply the word highlighting
     vscode.commands.executeCommand('cursorLeft');
