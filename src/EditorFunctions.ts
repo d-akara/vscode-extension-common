@@ -1,6 +1,12 @@
 'use strict';
 
 import * as vscode from 'vscode'
+let orderby = require('lodash.orderby');
+
+export interface lineInfo {
+    line: vscode.TextLine;
+    range: vscode.Range;
+}
 
 export function makeRangeFromFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
     let endLineNumber = lineNumber;
@@ -38,10 +44,11 @@ export function isNextLineDownSpacedRight(document: vscode.TextDocument, lineNum
 }
 
 export function textOfSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
-    let range = selection as vscode.Range;
+    let range;
     if (selection.isEmpty) {
         range = document.getWordRangeAtPosition(new vscode.Position(selection.anchor.line, selection.anchor.character));
     } 
+    if (!range) range = selection as vscode.Range;
     return document.getText(range);
 }
 
@@ -137,4 +144,117 @@ export function triggerWordHighlighting() {
     // Move the cursor so that vscode will reapply the word highlighting
     vscode.commands.executeCommand('cursorLeft');
     vscode.commands.executeCommand('cursorRight');
+}
+
+export function linesFromRanges(document: vscode.TextDocument, ranges: Array<vscode.Range>) {
+    return ranges.map( range => linesFromRange(document, range) ).reduce( (acc, cur) => acc.concat(cur));
+}
+
+export function linesFromRange(document: vscode.TextDocument, range: vscode.Range) {
+    const startLine = range.start.line;
+    const endLine = range.end.line;
+
+    return collectLines(document, startLine, endLine);
+}
+
+export function expandRangeFullLineWidth(document: vscode.TextDocument, range: vscode.Range) {
+    return new vscode.Range(range.start.line, 0, range.end.line, document.lineAt(range.end.line).text.length);
+}
+
+export function replace(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string) {
+    textEditor.edit(function (editBuilder) {
+        editBuilder.replace(range, blockText);
+    });
+}
+
+export function replaceLines(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<vscode.TextLine>) {
+    textEditor.edit(function (editBuilder) {
+        let lineIndex = 0;
+        linesOld.forEach(line => {
+            editBuilder.replace(line.range, linesNew[lineIndex].text );
+            lineIndex++;
+        });
+    })
+}
+
+export function makeRangesFromCombined(textEditor: vscode.TextEditor, rangesLinesSource: Array<vscode.Range>, rangesCharPosSource: Array<vscode.Range>) {
+    const newRanges = [];
+    let lineIndex = 0;
+    rangesLinesSource.forEach(rangeLineSource => {
+        const ranchCharSource = rangesCharPosSource[lineIndex];
+        newRanges.push(new vscode.Range(new vscode.Position(rangeLineSource.start.line, ranchCharSource.start.character), new vscode.Position(rangeLineSource.end.line, ranchCharSource.end.character)));
+        lineIndex++;
+    });
+
+    return newRanges;
+}
+
+export function collectLines(document: vscode.TextDocument, startLine: number, endLine: number): Array<vscode.TextLine> {
+    const lines = [];
+    for (let index = startLine; index <= endLine; index++) {
+        lines.push(document.lineAt(index));
+    }
+    return lines;
+}
+
+export function openDocumentWith(content: string, languageId?: string) {
+    const textEditor = vscode.window.activeTextEditor;
+    return vscode.workspace.openTextDocument({ 'language': textEditor.document.languageId, 'content': content })
+    .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, false));
+}
+
+export function filterLines(textEditor: vscode.TextEditor, filter:(lineText: string) => boolean) {
+    const filteredLines:Array<vscode.TextLine> = [];
+    const totalLines = textEditor.document.lineCount;
+    for(let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
+        const line = textEditor.document.lineAt(lineIndex);
+        if (filter(line.text)) {
+            filteredLines.push(line);
+        }
+    }
+    return filteredLines;
+}
+
+export function textFromRangeOrCursor(text: string, range: vscode.Range) {
+    if (range.isSingleLine && range.start.character === range.end.character)
+        // select to end of line if range does not span characters
+        return text.substring(range.start.character, text.length);
+    return text.substring(range.start.character, range.end.character);
+} 
+
+export function expandRangeDocumentIfEmpty(textEditor: vscode.TextEditor, range: vscode.Range) {
+    if (range.isSingleLine && range.start.character === range.end.character) {
+        const rangeLastLine = textEditor.document.lineAt(textEditor.document.lineCount - 1).range.end;
+        return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
+    }
+    return range;
+}
+
+export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
+    const lines = linesFromRange(textEditor.document, range);
+    const sortedLines = orderby(lines, ['text']);
+
+    replaceLines(textEditor, lines, sortedLines);
+}
+
+export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
+    const lines = makeLineInfos(textEditor, ranges);
+    
+    const sortedLines = orderby(lines, [line => textFromRangeOrCursor(line.line.text, line.range)]);
+
+    replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
+    const updatedRanges = makeRangesFromCombined(textEditor, lines.map(line => line.range), sortedLines.map(line => line.range));
+    textEditor.selections = updatedRanges.map(range => new vscode.Selection(range.start, range.end));
+}
+
+export function makeLineInfos(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
+    const lineAndCursors: Map<number, lineInfo> = new Map();
+    for(const range of ranges) {
+        const line = textEditor.document.lineAt(range.start.line);
+        let lineAndCursor = lineAndCursors.get(line.lineNumber);
+        if (!lineAndCursor) lineAndCursor = {line, range};
+
+        lineAndCursors.set(line.lineNumber, lineAndCursor);
+    }
+    return Array.from(lineAndCursors.values());
 }
