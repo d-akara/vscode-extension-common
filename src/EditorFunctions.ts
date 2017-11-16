@@ -230,6 +230,58 @@ export function expandRangeDocumentIfEmpty(textEditor: vscode.TextEditor, range:
     return range;
 }
 
+export function findNextLineDown(document: vscode.TextDocument, lineNumber: number, stopWhen: (line: vscode.TextLine)=> boolean) {
+    const line = document.lineAt(lineNumber);
+    const documentLength = document.lineCount;
+    for(let index = lineNumber + 1; index < documentLength; index++) {
+        const nextLine = document.lineAt(index);
+        if (stopWhen(nextLine)) return nextLine;
+    }
+    return null;    
+}
+
+export function findNextLineUp(document: vscode.TextDocument, lineNumber: number, stopWhen: (line: vscode.TextLine)=> boolean) {
+    const line = document.lineAt(lineNumber);
+    for(let index = lineNumber - 1; index >= 0; index--) {
+        const nextLine = document.lineAt(index);
+        if (stopWhen(nextLine)) return nextLine;
+    }
+    return null;    
+}
+
+export function findLastLineOfBlock(document: vscode.TextDocument, lineNumber: number, isInBlock: (line: vscode.TextLine)=> boolean) {
+    const line = document.lineAt(lineNumber);
+    let previousLine = line;
+    const documentLength = document.lineCount;
+    for(let index = lineNumber + 1; index < documentLength; index++) {
+        const nextLine = document.lineAt(index);
+        if (!isInBlock(nextLine)) break;
+        previousLine = nextLine;
+    }
+    return previousLine;    
+}
+
+export function findFirstLineOfBlock(document: vscode.TextDocument, lineNumber: number, isInBlock: (line: vscode.TextLine)=> boolean) {
+    const line = document.lineAt(lineNumber);
+    let previousLine = line;
+    for(let index = lineNumber - 1; index >= 0; index--) {
+        const nextLine = document.lineAt(index);
+        if (!isInBlock(nextLine)) break;
+        previousLine = nextLine;
+    }
+    return previousLine;    
+}
+
+export function expandRangeToBlockIfEmpty(textEditor: vscode.TextEditor, range: vscode.Range) {
+    if (range.isSingleLine && range.start.character === range.end.character) {
+
+        const firstLineOfBlock = findFirstLineOfBlock(textEditor.document, range.start.line, line => !line.isEmptyOrWhitespace);
+        const lastLineOfBlock = findLastLineOfBlock(textEditor.document, range.start.line, line => !line.isEmptyOrWhitespace);
+        return new vscode.Range(new vscode.Position(firstLineOfBlock.lineNumber,0), new vscode.Position(lastLineOfBlock.lineNumber, lastLineOfBlock.range.end.character));
+    }
+    return range;
+}
+
 export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
     const lines = linesFromRange(textEditor.document, range);
     const sortedLines = orderby(lines, ['text']);
@@ -257,4 +309,14 @@ export function makeLineInfos(textEditor: vscode.TextEditor, ranges: Array<vscod
         lineAndCursors.set(line.lineNumber, lineAndCursor);
     }
     return Array.from(lineAndCursors.values());
+}
+
+export function createGutterDecorator(lineNumber:number, contentText:string, width:string) {
+    const posStart = new vscode.Position(lineNumber,0);
+    return {
+        range: new vscode.Range(posStart, posStart), 
+        renderOptions: {
+            before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('badge.foreground')} 
+        }
+    };
 }
