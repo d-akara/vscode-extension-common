@@ -1,13 +1,11 @@
 'use strict';
-
 import * as vscode from 'vscode'
 let orderby = require('lodash.orderby');
-
 export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
-
+const help = 2;
 export function makeRangeFromFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
     let endLineNumber = lineNumber;
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, lineNumber, tabSize);
