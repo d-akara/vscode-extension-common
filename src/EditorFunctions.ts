@@ -284,7 +284,7 @@ export function expandRangeToBlockIfEmpty(textEditor: vscode.TextEditor, range: 
 
 export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
     const lines = linesFromRange(textEditor.document, range);
-    const sortedLines = orderby(lines, ['text']);
+    const sortedLines = orderby(lines, ['text'], null, null);
 
     replaceLines(textEditor, lines, sortedLines);
 }
@@ -292,7 +292,7 @@ export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscod
 export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
     const lines = makeLineInfos(textEditor, ranges);
     
-    const sortedLines = orderby(lines, [line => textFromRangeOrCursor(line.line.text, line.range)]);
+    const sortedLines = orderby(lines, [line => textFromRangeOrCursor(line.line.text, line.range)], null, null);
 
     replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
     const updatedRanges = makeRangesFromCombined(textEditor, lines.map(line => line.range), sortedLines.map(line => line.range));
