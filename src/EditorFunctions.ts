@@ -5,7 +5,6 @@ export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
-const help = 2;
 export function makeRangeFromFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
     let endLineNumber = lineNumber;
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, lineNumber, tabSize);
@@ -39,6 +38,29 @@ export function isNextLineDownSpacedRight(document: vscode.TextDocument, lineNum
         }
     }
     return null;    
+}
+
+export function findAllLinesSpacedOneLevelRight(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
+    const line = document.lineAt(lineNumber);
+    const documentLength = document.lineCount;
+    const parentLineSpacing = calculateLineSpacing(line.text, tabSize);
+    const foundLines = <vscode.TextLine[]>[];
+
+    const nextLineDown = findNextLineDown(document, lineNumber, line=>!line.isEmptyOrWhitespace);
+    const childSpacing = calculateLineSpacing(nextLineDown.text, tabSize);
+    if (childSpacing <= parentLineSpacing) return foundLines;
+
+
+    for(let index = lineNumber + 1; index < documentLength; index++) {
+        const nextLine = document.lineAt(index);
+        if ( !nextLine.isEmptyOrWhitespace ) {
+            const currentSpacing = calculateLineSpacing(nextLine.text, tabSize);
+            if (currentSpacing <= parentLineSpacing) break;
+            if (currentSpacing == childSpacing)
+                foundLines.push(nextLine);
+        }
+    }
+    return foundLines;    
 }
 
 export function textOfSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
