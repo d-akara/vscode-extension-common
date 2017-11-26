@@ -5,7 +5,7 @@
     "tasks": [
         {
             "identifier": "common_build",
-            "label": "common build",
+            "label": "Common build watch",
             "type": "typescript",
             "tsconfig": "tsconfig.json",
             "option": "watch",

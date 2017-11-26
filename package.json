@@ -26,11 +26,11 @@
   },
   "homepage": "https://github.com/dakaraphi/vscode-extension-common#readme",
   "engines": {
-    "vscode": "^1.16.0"
+    "vscode": "^1.18.0"
   },
   "devDependencies": {
     "@types/node": "^8.0.53",
-    "vscode": "^1.1.7"
+    "vscode": "^1.1.8"
   },
   "dependencies": {
     "lodash.orderby": "^4.6.0"
