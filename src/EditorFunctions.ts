@@ -187,6 +187,13 @@ export function replace(textEditor: vscode.TextEditor, range: vscode.Range, bloc
     });
 }
 
+export function reverseLines(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
+    const linesToReverse = linesFromRange(textEditor.document, expandRangeToBlockIfEmpty(textEditor, ranges[0]));
+    const reversedLines = linesToReverse.slice(0);
+    linesToReverse.reverse();
+    replaceLines(textEditor, linesToReverse, reversedLines);
+ };
+
 export function replaceLines(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<vscode.TextLine>) {
     textEditor.edit(function (editBuilder) {
         let lineIndex = 0;
