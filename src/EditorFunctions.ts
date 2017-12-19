@@ -181,6 +181,10 @@ export function expandRangeFullLineWidth(document: vscode.TextDocument, range: v
     return new vscode.Range(range.start.line, 0, range.end.line, document.lineAt(range.end.line).text.length);
 }
 
+export function textFromLines(document: vscode.TextDocument, lines: Array<vscode.TextLine>) {
+    return lines.map(line=>line.text).reduce((text, lineText)=> text+lineText+document.eol,'')
+}
+
 export function replace(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string) {
     textEditor.edit(function (editBuilder) {
         editBuilder.replace(range, blockText);
