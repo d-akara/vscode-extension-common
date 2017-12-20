@@ -358,3 +358,16 @@ export function createGutterDecorator(lineNumber:number, contentText:string, wid
         }
     };
 }
+
+export function promptForFilterExpression(defaultValue:string):Thenable<(lineText: string) => boolean> {
+    return vscode.window.showInputBox({value: defaultValue, prompt: 'Enter regex or [space] + literal'})
+        .then(filter => {
+            let fnFilter;
+            if (filter.charAt(0) === ' ') fnFilter = (lineText:string) => lineText.includes(filter.substring(1));
+            else {
+                const regex = new RegExp(filter);
+                fnFilter = (lineText:string) => regex.test(lineText);
+            }
+            return fnFilter;
+        })
+}
