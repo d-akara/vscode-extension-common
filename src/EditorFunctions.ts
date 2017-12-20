@@ -203,7 +203,7 @@ export function reverseLines(textEditor: vscode.TextEditor, ranges: Array<vscode
         linesToReverse.reverse();
         replaceLines(textEditor, linesToReverse, reversedLines);
     }
- };
+};
 
 export function replaceLines(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<vscode.TextLine>) {
     textEditor.edit(function (editBuilder) {
@@ -258,6 +258,13 @@ export function textFromRangeOrCursor(text: string, range: vscode.Range) {
         // select to end of line if range does not span characters
         return text.substring(range.start.character, text.length);
     return text.substring(range.start.character, range.end.character);
+} 
+
+export function textFromRanges(document: vscode.TextDocument, ranges: vscode.Range[]) {
+    return ranges.map(range=>{
+        const line = document.lineAt(range.start.line);
+        return line.text.substring(range.start.character, range.end.character);
+    })
 } 
 
 export function expandRangeDocumentIfEmpty(textEditor: vscode.TextEditor, range: vscode.Range) {
@@ -356,6 +363,7 @@ export function createGutterDecorator(lineNumber:number, contentText:string, wid
         renderOptions: {
             before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('badge.foreground')} 
         }
+        //hoverMessage: contentText
     };
 }
 
