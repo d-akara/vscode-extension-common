@@ -348,6 +348,13 @@ export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscod
     replaceLines(textEditor, lines, sortedLines);
 }
 
+export function sortLinesByLength(textEditor: vscode.TextEditor, range: vscode.Range) {
+    const lines = linesFromRange(textEditor.document, range);
+    const sortedLines = orderby(lines, ['text.length'], null, null);
+
+    replaceLines(textEditor, lines, sortedLines);
+}
+
 export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
     const lines = makeLineInfos(textEditor, ranges);
     
