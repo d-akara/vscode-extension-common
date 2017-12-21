@@ -1,5 +1,6 @@
 'use strict';
 import * as vscode from 'vscode'
+import { MarkdownString } from 'vscode';
 let orderby = require('lodash.orderby');
 export interface lineInfo {
     line: vscode.TextLine;
@@ -63,7 +64,14 @@ export function findAllLinesSpacedOneLevelRight(document: vscode.TextDocument, l
     return foundLines;    
 }
 
-export function textOfSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
+/**
+ * Returns selected text on a single line, or word under cursor if no selection.
+ * If multiline selected, returns empty string
+ * @param document 
+ * @param selection 
+ */
+export function textOfLineSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
+    if (!selection.isSingleLine) return '';
     let range;
     if (selection.isEmpty) {
         range = document.getWordRangeAtPosition(new vscode.Position(selection.anchor.line, selection.anchor.character));
@@ -241,10 +249,12 @@ export function openDocumentWith(content: string, languageId?: string) {
     .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, false));
 }
 
-export function filterLines(textEditor: vscode.TextEditor, filter:(lineText: string) => boolean) {
+export function filterLines(textEditor: vscode.TextEditor, range: vscode.Range, filter:(lineText: string) => boolean) {
     const filteredLines:Array<vscode.TextLine> = [];
-    const totalLines = textEditor.document.lineCount;
-    for(let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
+
+    const totalLines = (range.end.line - range.start.line) + 1
+    for(let lineIndex = range.start.line; lineIndex < totalLines; lineIndex++) {
+
         const line = textEditor.document.lineAt(lineIndex);
         if (filter(line.text)) {
             filteredLines.push(line);
@@ -269,10 +279,14 @@ export function textFromRanges(document: vscode.TextDocument, ranges: vscode.Ran
 
 export function expandRangeDocumentIfEmpty(textEditor: vscode.TextEditor, range: vscode.Range) {
     if (range.isSingleLine && range.start.character === range.end.character) {
-        const rangeLastLine = textEditor.document.lineAt(textEditor.document.lineCount - 1).range.end;
-        return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
+        return makeRangeDocument(textEditor);
     }
     return range;
+}
+
+export function makeRangeDocument(textEditor: vscode.TextEditor) {
+    const rangeLastLine = textEditor.document.lineAt(textEditor.document.lineCount - 1).range.end;
+    return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
 }
 
 export function findNextLineDown(document: vscode.TextDocument, lineNumber: number, stopWhen: (line: vscode.TextLine)=> boolean) {
@@ -358,13 +372,21 @@ export function makeLineInfos(textEditor: vscode.TextEditor, ranges: Array<vscod
 
 export function createGutterDecorator(lineNumber:number, contentText:string, width:string) {
     const posStart = new vscode.Position(lineNumber,0);
+    
     return {
         range: new vscode.Range(posStart, posStart), 
         renderOptions: {
             before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('badge.foreground')} 
         }
-        //hoverMessage: contentText
+        //hoverMessage: hoverMessage
     };
+}
+
+export function addMarkdownCommandLink(markdownString:MarkdownString, linkName:string, commandId:string, parameters:object) {
+    const uri = encodeURI('command:'+commandId+'?' + JSON.stringify(parameters))
+    markdownString.appendMarkdown('['+linkName+']('+uri+')');
+    markdownString.isTrusted = true;
+    return markdownString;
 }
 
 export function promptForFilterExpression(defaultValue:string):Thenable<(lineText: string) => boolean> {
@@ -378,4 +400,10 @@ export function promptForFilterExpression(defaultValue:string):Thenable<(lineTex
             }
             return fnFilter;
         })
+}
+
+export function openShowDocument(content: string, languageId?:string, preserveFocus=true) {
+    languageId = languageId||vscode.window.activeTextEditor.document.languageId;
+    return vscode.workspace.openTextDocument({ 'language': languageId, 'content': content })
+                 .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, preserveFocus))
 }
