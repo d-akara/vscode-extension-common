@@ -214,10 +214,14 @@ export function reverseLines(textEditor: vscode.TextEditor, ranges: Array<vscode
 };
 
 export function replaceLines(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<vscode.TextLine>) {
+    replaceLinesWithText(textEditor, linesOld, linesNew.map(line=>line.text));
+}
+
+export function replaceLinesWithText(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<string>) {
     textEditor.edit(function (editBuilder) {
         let lineIndex = 0;
         linesOld.forEach(line => {
-            editBuilder.replace(line.range, linesNew[lineIndex].text );
+            editBuilder.replace(line.range, linesNew[lineIndex]);
             lineIndex++;
         });
     })
