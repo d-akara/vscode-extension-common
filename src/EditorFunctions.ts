@@ -341,6 +341,31 @@ export function expandRangeToBlockIfEmpty(textEditor: vscode.TextEditor, range: 
     return range;
 }
 
+export function makeVerticalRangesWithinBlock(textEditor: vscode.TextEditor, ranges: vscode.Range[]) {
+    if (ranges.length > 1) return ranges;
+
+    const range = ranges[0];
+    if (range.isSingleLine && range.start.character === range.end.character) {
+
+        const firstLineOfBlock = findFirstLineOfBlock(textEditor.document, range.start.line, line => !line.isEmptyOrWhitespace);
+        const lastLineOfBlock = findLastLineOfBlock(textEditor.document, range.start.line, line => !line.isEmptyOrWhitespace);
+        const cursorColumn = calculateColumnFromCharIndex(textEditor.document.lineAt(range.start.line).text, range.start.character, +textEditor.options.tabSize);
+
+        const ranges:vscode.Range[] = [];
+        for(let lineIndex = firstLineOfBlock.lineNumber; lineIndex <= lastLineOfBlock.lineNumber; lineIndex++) {
+            const line = textEditor.document.lineAt(lineIndex);
+            const charIndex = calculateCharIndexFromColumn(line.text, cursorColumn,  +textEditor.options.tabSize);
+            ranges.push(new vscode.Range(new vscode.Position(line.lineNumber,charIndex), new vscode.Position(line.lineNumber, charIndex)));
+        }
+        return ranges;
+    }
+    return [range];
+}
+
+export function makeSelectionsFromRanges(ranges: vscode.Range[]) {
+    return ranges.map(range=>new vscode.Selection(range.start.line, range.start.character,range.start.line, range.start.character))
+}
+
 export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
     const lines = linesFromRange(textEditor.document, range);
     const sortedLines = orderby(lines, ['text'], null, null);
@@ -348,10 +373,8 @@ export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscod
     replaceLines(textEditor, lines, sortedLines);
 }
 
-export function sortLinesByLength(textEditor: vscode.TextEditor, range: vscode.Range) {
-    const lines = linesFromRange(textEditor.document, range);
+export function sortLinesByLength(textEditor: vscode.TextEditor, lines: vscode.TextLine[]) {
     const sortedLines = orderby(lines, ['text.length'], null, null);
-
     replaceLines(textEditor, lines, sortedLines);
 }
 
