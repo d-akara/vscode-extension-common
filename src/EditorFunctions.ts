@@ -267,17 +267,16 @@ export function filterLines(textEditor: vscode.TextEditor, range: vscode.Range, 
     return filteredLines;
 }
 
-export function textFromRangeOrCursor(text: string, range: vscode.Range) {
+export function textFromRangeOrCursorToEndLine(text: string, range: vscode.Range) {
     if (range.isSingleLine && range.start.character === range.end.character)
         // select to end of line if range does not span characters
         return text.substring(range.start.character, text.length);
     return text.substring(range.start.character, range.end.character);
 } 
 
-export function textFromRanges(document: vscode.TextDocument, ranges: vscode.Range[]) {
+export function textsFromRanges(document: vscode.TextDocument, ranges: vscode.Range[]) {
     return ranges.map(range=>{
-        const line = document.lineAt(range.start.line);
-        return line.text.substring(range.start.character, range.end.character);
+        return document.getText(range);
     })
 } 
 
@@ -385,7 +384,7 @@ export function sortLinesByLength(textEditor: vscode.TextEditor, lines: vscode.T
 export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
     const lines = makeLineInfos(textEditor, ranges);
     
-    const sortedLines = orderby(lines, [line => textFromRangeOrCursor(line.line.text, line.range)], null, null);
+    const sortedLines = orderby(lines, [line => textFromRangeOrCursorToEndLine(line.line.text, line.range)], null, null);
 
     replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
     const updatedRanges = makeRangesFromCombined(textEditor, lines.map(line => line.range), sortedLines.map(line => line.range));
@@ -429,7 +428,7 @@ export function promptForFilterExpression(defaultValue:string):Thenable<(lineTex
             let fnFilter;
             if (filter.charAt(0) === ' ') fnFilter = (lineText:string) => lineText.includes(filter.substring(1));
             else {
-                const regex = new RegExp(filter);
+                const regex = new RegExp(filter, 'i');
                 fnFilter = (lineText:string) => regex.test(lineText);
             }
             return fnFilter;
@@ -440,4 +439,30 @@ export function openShowDocument(content: string, languageId?:string, preserveFo
     languageId = languageId||vscode.window.activeTextEditor.document.languageId;
     return vscode.workspace.openTextDocument({ 'language': languageId, 'content': content })
                  .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, preserveFocus))
+}
+
+/**
+ * Returns promise which resolves to current selections if exist and non empty
+ * else attempts to create selections from current match results
+ * @param textEditor
+ */
+export function selectionsOrMatchesAsSelections(textEditor: vscode.TextEditor) {
+    const originalSelections = textEditor.selections;
+    if ((originalSelections.length > 1) || !textEditor.selection.isEmpty) return Promise.resolve(originalSelections);
+    return vscode.commands.executeCommand('editor.action.selectAllMatches')
+          .then(()=> {
+              const matchSelections = textEditor.selections.slice(0, textEditor.selections.length);
+              textEditor.selections = originalSelections;
+              return matchSelections;
+            })
+}
+
+export function selectionsOrMatchesAsSelectionsOrDocument(textEditor: vscode.TextEditor) {
+    return selectionsOrMatchesAsSelections(textEditor).then(selections=> {
+        if (selections.length === 1 && selections[0].isEmpty) {
+            const documentRange = makeRangeDocument(textEditor);
+            return [new vscode.Selection(documentRange.start, documentRange.end)];
+        }
+        return selections;
+    })
 }
