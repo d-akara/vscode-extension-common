@@ -449,6 +449,11 @@ export function openShowDocument(content: string, languageId?:string, preserveFo
 export function selectionsOrMatchesAsSelections(textEditor: vscode.TextEditor) {
     const originalSelections = textEditor.selections;
     if ((originalSelections.length > 1) || !textEditor.selection.isEmpty) return Promise.resolve(originalSelections);
+    return matchesAsSelections(textEditor)
+}
+
+export function matchesAsSelections(textEditor: vscode.TextEditor) {
+    const originalSelections = textEditor.selections;
     return vscode.commands.executeCommand('editor.action.selectAllMatches')
           .then(()=> {
               const matchSelections = textEditor.selections.slice(0, textEditor.selections.length);
