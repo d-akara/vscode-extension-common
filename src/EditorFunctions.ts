@@ -247,19 +247,13 @@ export function collectLines(document: vscode.TextDocument, startLine: number, e
     return lines;
 }
 
-export function openDocumentWith(content: string, languageId?: string) {
-    const textEditor = vscode.window.activeTextEditor;
-    return vscode.workspace.openTextDocument({ 'language': textEditor.document.languageId, 'content': content })
-    .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, false));
-}
-
-export function filterLines(textEditor: vscode.TextEditor, range: vscode.Range, filter:(lineText: string) => boolean) {
+export function filterLines(document: vscode.TextDocument, range: vscode.Range, filter:(lineText: string) => boolean) {
     const filteredLines:Array<vscode.TextLine> = [];
 
     const totalLines = (range.end.line - range.start.line) + 1
     for(let lineIndex = range.start.line; lineIndex < totalLines; lineIndex++) {
 
-        const line = textEditor.document.lineAt(lineIndex);
+        const line = document.lineAt(lineIndex);
         if (filter(line.text)) {
             filteredLines.push(line);
         }
@@ -282,13 +276,13 @@ export function textsFromRanges(document: vscode.TextDocument, ranges: vscode.Ra
 
 export function expandRangeDocumentIfEmpty(textEditor: vscode.TextEditor, range: vscode.Range) {
     if (range.isSingleLine && range.start.character === range.end.character) {
-        return makeRangeDocument(textEditor);
+        return makeRangeDocument(textEditor.document);
     }
     return range;
 }
 
-export function makeRangeDocument(textEditor: vscode.TextEditor) {
-    const rangeLastLine = textEditor.document.lineAt(textEditor.document.lineCount - 1).range.end;
+export function makeRangeDocument(document: vscode.TextDocument) {
+    const rangeLastLine = document.lineAt(document.lineCount - 1).range.end;
     return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
 }
 
@@ -435,10 +429,21 @@ export function promptForFilterExpression(defaultValue:string):Thenable<(lineTex
         })
 }
 
-export function openShowDocument(content: string, languageId?:string, preserveFocus=true) {
-    languageId = languageId||vscode.window.activeTextEditor.document.languageId;
-    return vscode.workspace.openTextDocument({ 'language': languageId, 'content': content })
-                 .then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Two, preserveFocus))
+/**
+ * Open new document if not already open.
+ * Show document in next editor group
+ * @param name 
+ * @param content 
+ * @param preserveFocus 
+ */
+export function openShowDocument(name: string, content: string, preserveFocus=true) {
+    const nextColumn = vscode.window.activeTextEditor.viewColumn === 3 ? 2 : 1 + vscode.window.activeTextEditor.viewColumn
+    return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:'+name))
+        .then(document => vscode.window.showTextDocument(document, nextColumn, preserveFocus))
+        .then(editor=> {
+            replace(editor, makeRangeDocument(editor.document), content)
+            return editor;
+        })
 }
 
 /**
@@ -465,7 +470,7 @@ export function matchesAsSelections(textEditor: vscode.TextEditor) {
 export function selectionsOrMatchesAsSelectionsOrDocument(textEditor: vscode.TextEditor) {
     return selectionsOrMatchesAsSelections(textEditor).then(selections=> {
         if (selections.length === 1 && selections[0].isEmpty) {
-            const documentRange = makeRangeDocument(textEditor);
+            const documentRange = makeRangeDocument(textEditor.document);
             return [new vscode.Selection(documentRange.start, documentRange.end)];
         }
         return selections;
