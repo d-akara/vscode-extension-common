@@ -286,6 +286,11 @@ export function makeRangeDocument(document: vscode.TextDocument) {
     return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
 }
 
+export function makeRangeFromLineToEnd(document: vscode.TextDocument, lineStart:number) {
+    const rangeLastLine = document.lineAt(document.lineCount - 1).range.end;
+    return new vscode.Range(new vscode.Position(lineStart,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
+}
+
 export function findNextLineDown(document: vscode.TextDocument, lineNumber: number, stopWhen: (line: vscode.TextLine)=> boolean) {
     const line = document.lineAt(lineNumber);
     const documentLength = document.lineCount;
