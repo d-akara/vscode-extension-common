@@ -481,3 +481,7 @@ export function selectionsOrMatchesAsSelectionsOrDocument(textEditor: vscode.Tex
         return selections;
     })
 }
+
+export function visibleTextEditorFromDocument(document:vscode.TextDocument) {
+    return vscode.window.visibleTextEditors.find(editor=>editor.document===document)
+}
