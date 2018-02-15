@@ -64,6 +64,21 @@ export function findAllLinesSpacedOneLevelRight(document: vscode.TextDocument, l
     return foundLines;    
 }
 
+export function findAllLinesSameFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
+    const line = document.lineAt(lineNumber);
+    const documentLength = document.lineCount;
+    const parentLine = findNextLineUpSpacedLeft(document, lineNumber, tabSize)
+    if (!parentLine) return <vscode.TextLine[]>[];
+
+    const foldingRegion = makeRangeFromFoldingRegion(document, parentLine.lineNumber, tabSize)
+    const linesWithinFoldingRegion = linesFromRange(document, foldingRegion)
+
+    const lineSpacing = calculateLineSpacing(line.text, tabSize);
+
+    return linesWithinFoldingRegion.filter(line=>!line.isEmptyOrWhitespace)
+                                   .filter(line=>lineSpacing === calculateLineSpacing(line.text, tabSize))
+}
+
 /**
  * Returns selected text on a single line, or word under cursor if no selection.
  * If multiline selected, returns empty string
@@ -100,30 +115,29 @@ export function findAllLineNumbersContaining(document: vscode.TextDocument, text
 
 export function calculateLineLevel(textEditor: vscode.TextEditor, lineNumber: number) {
     let level = 1;
-    let nextLine = findNextLineUpSpacedLeft(textEditor, lineNumber);
+    let nextLine = findNextLineUpSpacedLeft(textEditor.document, lineNumber, +textEditor.options.tabSize);
     while(nextLine) {
         level++;
-        nextLine = findNextLineUpSpacedLeft(textEditor, nextLine.lineNumber);
+        nextLine = findNextLineUpSpacedLeft(textEditor.document, nextLine.lineNumber, +textEditor.options.tabSize);
     }
     return level;
 }
 
-export function findLinesByLevelToRoot(textEditor: vscode.TextEditor, lineNumber: number) {
-    const lines = [textEditor.document.lineAt(lineNumber)];
-    let nextLine = findNextLineUpSpacedLeft(textEditor, lineNumber);
+export function findLinesByLevelToRoot(document: vscode.TextDocument, lineNumber: number, tabSize:number) {
+    const lines = [document.lineAt(lineNumber)];
+    let nextLine = findNextLineUpSpacedLeft(document, lineNumber, tabSize);
     while(nextLine) {
         lines.push(nextLine);
-        nextLine = findNextLineUpSpacedLeft(textEditor, nextLine.lineNumber);
+        nextLine = findNextLineUpSpacedLeft(document, nextLine.lineNumber, tabSize);
     }
     return lines;
 }
 
-export function findNextLineUpSpacedLeft(textEditor: vscode.TextEditor, lineNumber: number) {
-    const line = textEditor.document.lineAt(lineNumber);
-    const tabSize = +textEditor.options.tabSize;
+export function findNextLineUpSpacedLeft(document: vscode.TextDocument, lineNumber: number, tabSize:number) {
+    const line = document.lineAt(lineNumber);
     let lastSpacing = calculateLineSpacing(line.text, tabSize);
     for(let index = lineNumber; index >= 0; index--) {
-        const line = textEditor.document.lineAt(index);
+        const line = document.lineAt(index);
         if ( !line.isEmptyOrWhitespace ) {
             const currentSpacing = calculateLineSpacing(line.text, tabSize);
             if (currentSpacing < lastSpacing) return line;
