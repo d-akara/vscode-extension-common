@@ -6,11 +6,34 @@ export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
-export function makeRangeFromFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
-    let endLineNumber = lineNumber;
-    const endFoldLine = findNextLineDownSameSpacingOrLeft(document, lineNumber, tabSize);
+export function makeRangeFromFoldingRegion(document: vscode.TextDocument, foldableLineNumber: number, tabSize: number) {
+    let endLineNumber = foldableLineNumber;
+    const endFoldLine = findNextLineDownSameSpacingOrLeft(document, foldableLineNumber, tabSize);
     if (endFoldLine) endLineNumber = endFoldLine.lineNumber;
-    return new vscode.Range(lineNumber, 0, endLineNumber, 0);
+    return new vscode.Range(foldableLineNumber, 0, endLineNumber, 0);
+}
+
+/**
+ * 
+ * @param document 
+ * @param lineNumber folding range created relative to this line
+ * @param relativeLevel number of parent levels to include.  0 = children, 1 = all siblings and children, 2+ parents and their children
+ * @param tabSize 
+ * @returns range of region.  If relative level results in root, all lines in document returned.
+ */
+export function makeRangeFromFoldingRegionRelativeLevel(document: vscode.TextDocument, lineNumber: number, relativeLevel: number, tabSize: number) {
+    let line = document.lineAt(lineNumber);
+    const documentLength = document.lineCount;
+
+    while (relativeLevel-- > 0) {
+        line = findNextLineUpSpacedLeft(document, line.lineNumber, tabSize)
+        if (!line) return makeRangeDocument(document);
+    }
+
+    let endLineNumber = line.lineNumber;
+    const endFoldLine = findNextLineDownSameSpacingOrLeft(document, line.lineNumber, tabSize);
+    if (endFoldLine) endLineNumber = endFoldLine.lineNumber;
+    return new vscode.Range(line.lineNumber, 0, endLineNumber, 0);
 }
 
 export function findNextLineDownSameSpacingOrLeft(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
@@ -62,21 +85,6 @@ export function findAllLinesSpacedOneLevelRight(document: vscode.TextDocument, l
         }
     }
     return foundLines;    
-}
-
-export function findAllLinesSameFoldingRegion(document: vscode.TextDocument, lineNumber: number, tabSize: number) {
-    const line = document.lineAt(lineNumber);
-    const documentLength = document.lineCount;
-    const parentLine = findNextLineUpSpacedLeft(document, lineNumber, tabSize)
-    if (!parentLine) return <vscode.TextLine[]>[];
-
-    const foldingRegion = makeRangeFromFoldingRegion(document, parentLine.lineNumber, tabSize)
-    const linesWithinFoldingRegion = linesFromRange(document, foldingRegion)
-
-    const lineSpacing = calculateLineSpacing(line.text, tabSize);
-
-    return linesWithinFoldingRegion.filter(line=>!line.isEmptyOrWhitespace)
-                                   .filter(line=>lineSpacing === calculateLineSpacing(line.text, tabSize))
 }
 
 /**
