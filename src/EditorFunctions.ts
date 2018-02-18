@@ -9,6 +9,8 @@ export interface lineInfo {
 export function makeRangeFromFoldingRegion(document: vscode.TextDocument, foldableLineNumber: number, tabSize: number) {
     let endLineNumber = foldableLineNumber;
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, foldableLineNumber, tabSize);
+    // TODO review 'makeRangeFromFoldingRegionRelativeLevel'.  Should we return next line if current is not foldable.
+    // Need to check who uses this function and behavior
     if (endFoldLine) endLineNumber = endFoldLine.lineNumber;
     return new vscode.Range(foldableLineNumber, 0, endLineNumber, 0);
 }
@@ -32,7 +34,8 @@ export function makeRangeFromFoldingRegionRelativeLevel(document: vscode.TextDoc
 
     let endLineNumber = line.lineNumber;
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, line.lineNumber, tabSize);
-    if (endFoldLine) endLineNumber = endFoldLine.lineNumber;
+    // If end fold line is not 1 greater than starting line, then there are no children.  Not foldable
+    if (endFoldLine && endFoldLine.lineNumber > endLineNumber + 1) endLineNumber = endFoldLine.lineNumber;
     return new vscode.Range(line.lineNumber, 0, endLineNumber, 0);
 }
 
@@ -487,6 +490,47 @@ export function promptForFilterExpression(defaultValue:string):Thenable<(lineTex
             }
             return fnFilter;
         })
+}
+
+export interface QuickPickActionable extends vscode.QuickPickItem {
+    input?: vscode.InputBoxOptions
+    value?: any
+    final?: boolean // closes and returns result on selection
+    children?: QuickPickActionable[] | (()=>Thenable<QuickPickActionable[]>)
+}
+
+function invokePickAction(item: QuickPickActionable) {
+    //console.log('pick selected', item)
+    //return promptOptions(item.children)
+}
+
+export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickActionable)=>any) {
+    return vscode.window.showQuickPick(items, {ignoreFocusOut:true, onDidSelectItem: invokePickAction}).then(item=>{
+        if (item.children) {
+            let resolveChildren:Thenable<QuickPickActionable[]>
+            if (typeof item.children === 'function')
+                resolveChildren = item.children()
+            else
+                resolveChildren = Promise.resolve(item.children as QuickPickActionable[]) // convert value to promise
+            return resolveChildren.then(children=>promptOptions(children))
+        } 
+        else if (item.input) {
+            item.input.value = item.value
+            item.input.ignoreFocusOut = true;
+            item.input.validateInput = (input)=> {
+                item.value = input;
+                onChange(item)
+                return null;
+            }
+            return vscode.window.showInputBox(item.input).then(inputText=>{
+                if (!item.final) {
+                    item.value = inputText
+                    return promptOptions(items, onChange)
+                }
+            })
+        }
+        return item
+    })
 }
 
 /**
