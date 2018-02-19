@@ -161,7 +161,7 @@ export function filterLines(document: vscode.TextDocument, range: vscode.Range, 
     const filteredLines:Array<vscode.TextLine> = [];
 
     const totalLines = (range.end.line - range.start.line) + 1
-    for(let lineIndex = range.start.line; lineIndex < totalLines; lineIndex++) {
+    for(let lineIndex = range.start.line; lineIndex < totalLines + range.start.line; lineIndex++) {
 
         const line = document.lineAt(lineIndex);
         if (filter(line.text)) {
@@ -479,17 +479,19 @@ export function addMarkdownCommandLink(markdownString:MarkdownString, linkName:s
     return markdownString;
 }
 
+export function makeFilterFunction(filter:string) {
+    let fnFilter:(lineText:string)=>boolean;
+    if (filter.charAt(0) === ' ') fnFilter = (lineText:string) => lineText.includes(filter.substring(1));
+    else {
+        const regex = new RegExp(filter, 'i');
+        fnFilter = (lineText:string) => regex.test(lineText);
+    }
+    return fnFilter;
+}
+
 export function promptForFilterExpression(defaultValue:string):Thenable<(lineText: string) => boolean> {
     return vscode.window.showInputBox({value: defaultValue, prompt: 'Enter regex or [space] + literal'})
-        .then(filter => {
-            let fnFilter;
-            if (filter.charAt(0) === ' ') fnFilter = (lineText:string) => lineText.includes(filter.substring(1));
-            else {
-                const regex = new RegExp(filter, 'i');
-                fnFilter = (lineText:string) => regex.test(lineText);
-            }
-            return fnFilter;
-        })
+        .then(filter => makeFilterFunction(filter))
 }
 
 export interface QuickPickActionable extends vscode.QuickPickItem {
@@ -499,12 +501,7 @@ export interface QuickPickActionable extends vscode.QuickPickItem {
     children?: QuickPickActionable[] | (()=>Thenable<QuickPickActionable[]>)
 }
 
-function invokePickAction(item: QuickPickActionable) {
-    //console.log('pick selected', item)
-    //return promptOptions(item.children)
-}
-
-class QuickPickActionableReactive implements QuickPickActionable {
+export class QuickPickActionableReactive implements QuickPickActionable {
     label
     description
     detail
@@ -522,17 +519,20 @@ class QuickPickActionableReactive implements QuickPickActionable {
 
 export function makeOption(item:QuickPickActionable) {
     const quickPickReactive = new QuickPickActionableReactive()
-    Object.assign(quickPickReactive, item)
-    // if (item.input) {
-    //     item.input.value = item.value
-    //     item.input.prompt = item.description
-    //     item.detail = item.value
-    // }
-    return quickPickReactive;
+    return Object.assign(quickPickReactive, item)
 }
 
-export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickActionable)=>any) {
-    return vscode.window.showQuickPick(items, {ignoreFocusOut:true, onDidSelectItem: invokePickAction}).then(item=>{
+export enum QuickPickActionType {
+    SHOW,
+    INPUT,
+    ENTER,
+    SELECT // not yet implemented
+}
+
+export function promptOptions(items:QuickPickActionable[], onChange?:(item:QuickPickActionable, action:QuickPickActionType)=>any) {
+    onChange(null, QuickPickActionType.SHOW)
+    return vscode.window.showQuickPick(items, {ignoreFocusOut:true}).then(item=>{
+        if (!item) return null
         if (item.children) {
             let resolveChildren:Thenable<QuickPickActionable[]>
             if (typeof item.children === 'function')
@@ -541,7 +541,10 @@ export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickA
                 resolveChildren = Promise.resolve(item.children as QuickPickActionable[]) // convert value to promise
             return resolveChildren.then(children=>{
                 promptOptions(children).then(selectedChild=>{
-                    item.value = selectedChild
+                    if (item.value != selectedChild) {
+                        item.value = selectedChild
+                        onChange(item, QuickPickActionType.ENTER)
+                    }
                     return promptOptions(items, onChange)
                 })
             })
@@ -549,18 +552,28 @@ export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickA
             item.input.value = item.value
             item.input.ignoreFocusOut = true;
             item.input.validateInput = (input)=> {
-                item.value = input;
-                onChange(item)
-                return null;
+                if (item.value != input) {
+                    item.value = input;
+                    return onChange(item, QuickPickActionType.INPUT)
+                }
+                return null
             }
+            if (!item.input.prompt) item.input.prompt = item.description
             return vscode.window.showInputBox(item.input).then(inputText=>{
                 if (!item.final) {
-                    item.value = inputText
+                    if (item.value != inputText) {
+                        item.value = inputText
+                        onChange(item, QuickPickActionType.ENTER)
+                    }
                     return promptOptions(items, onChange)
                 }
             })
+        } else if (item.value === false || item.value === true) {
+            item.value =! item.value
+            onChange(item, QuickPickActionType.ENTER)
+            return promptOptions(items, onChange)
         }
-
+        onChange(item, QuickPickActionType.ENTER)
         return item
     })
 }
@@ -577,7 +590,9 @@ export function openShowDocument(name: string, content: string, preserveFocus=tr
     return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:'+name))
         .then(document => vscode.window.showTextDocument(document, nextColumn, preserveFocus))
         .then(editor=> {
+            const originalSelection = editor.selection
             replace(editor, makeRangeDocument(editor.document), content)
+            editor.selection = originalSelection
             return editor;
         })
 }
