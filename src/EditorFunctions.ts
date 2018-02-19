@@ -504,6 +504,33 @@ function invokePickAction(item: QuickPickActionable) {
     //return promptOptions(item.children)
 }
 
+class QuickPickActionableReactive implements QuickPickActionable {
+    label
+    description
+    detail
+    input: vscode.InputBoxOptions
+    private _value
+    get value() {return this._value}
+    set value(value) {
+        this._value = value
+        if (value instanceof QuickPickActionableReactive)
+            this.detail = 'value: ' + value.label
+        else
+            this.detail = 'value: ' + this._value
+    } 
+}
+
+export function makeOption(item:QuickPickActionable) {
+    const quickPickReactive = new QuickPickActionableReactive()
+    Object.assign(quickPickReactive, item)
+    // if (item.input) {
+    //     item.input.value = item.value
+    //     item.input.prompt = item.description
+    //     item.detail = item.value
+    // }
+    return quickPickReactive;
+}
+
 export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickActionable)=>any) {
     return vscode.window.showQuickPick(items, {ignoreFocusOut:true, onDidSelectItem: invokePickAction}).then(item=>{
         if (item.children) {
@@ -512,9 +539,13 @@ export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickA
                 resolveChildren = item.children()
             else
                 resolveChildren = Promise.resolve(item.children as QuickPickActionable[]) // convert value to promise
-            return resolveChildren.then(children=>promptOptions(children))
-        } 
-        else if (item.input) {
+            return resolveChildren.then(children=>{
+                promptOptions(children).then(selectedChild=>{
+                    item.value = selectedChild
+                    return promptOptions(items, onChange)
+                })
+            })
+        } else if (item.input) {
             item.input.value = item.value
             item.input.ignoreFocusOut = true;
             item.input.validateInput = (input)=> {
@@ -529,6 +560,7 @@ export function promptOptions(items:QuickPickActionable[], onChange?:(QuickPickA
                 }
             })
         }
+
         return item
     })
 }
