@@ -27,7 +27,7 @@ export function makeRangeFromFoldingRegionRelativeLevel(document: vscode.TextDoc
     let line = document.lineAt(lineNumber);
     const documentLength = document.lineCount;
 
-    while (relativeLevel-- > 0) {
+    while (relativeLevel-- >= 0) {
         line = findNextLineUpSpacedLeft(document, line.lineNumber, tabSize)
         if (!line) return makeRangeDocument(document);
     }
@@ -36,7 +36,7 @@ export function makeRangeFromFoldingRegionRelativeLevel(document: vscode.TextDoc
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, line.lineNumber, tabSize);
     // If end fold line is not 1 greater than starting line, then there are no children.  Not foldable
     if (endFoldLine && endFoldLine.lineNumber > endLineNumber + 1) endLineNumber = endFoldLine.lineNumber;
-    return new vscode.Range(line.lineNumber, 0, endLineNumber, 0);
+    return new vscode.Range(line.lineNumber+1, 0, endLineNumber-1, 0);
 }
 
 export function makeRangeDocument(document: vscode.TextDocument) {
