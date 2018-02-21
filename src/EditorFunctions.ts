@@ -368,7 +368,7 @@ export function textOfLineSelectionOrWordAtCursor(document: vscode.TextDocument,
 }
 
 export function textFromLines(document: vscode.TextDocument, lines: Array<vscode.TextLine>) {
-    return lines.map(line=>line.text).reduce((text, lineText)=> text+lineText+'\n','')
+    return lines.map(line=>line.text).reduce((text, lineText)=> text+lineText+'\n')
 }
 
 export function textFromRangeOrCursorToEndLine(text: string, range: vscode.Range) {
