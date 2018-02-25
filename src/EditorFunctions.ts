@@ -6,6 +6,9 @@ export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
+
+const EMPTY_RANGE = new vscode.Range(new vscode.Position(0,0), new vscode.Position(0,1));
+
 export function makeRangeFromFoldingRegion(document: vscode.TextDocument, foldableLineNumber: number, tabSize: number) {
     let endLineNumber = foldableLineNumber;
     const endFoldLine = findNextLineDownSameSpacingOrLeft(document, foldableLineNumber, tabSize);
@@ -614,9 +617,24 @@ export interface LiveDocumentViewEvent {
     eventType:'selection'|'edit'
     editChanges?:vscode.TextDocumentContentChangeEvent[]
 }
+export type LiveViewUpdater = (textEditor: vscode.TextEditor, range: vscode.Range, blockText: string)=>void
+export type LiveViewRenderer = (update:LiveViewUpdater, event:LiveDocumentViewEvent)=>void
 
-export function liveDocumentView(token:{internal:boolean}, documentName:string, initialContent:string, ignoreRangeInView:Function, viewRenderer:(event:LiveDocumentViewEvent)=>void) {
+function isEventTriggeredFromSelf(event:vscode.TextDocumentChangeEvent) {
+    console.log('events', event.contentChanges.length)
+    return event.contentChanges.length === 2;
+}
+export function liveDocumentView(documentName:string, initialContent:string, viewRenderer:LiveViewRenderer) {
     let lastActiveSourceDocument = vscode.window.activeTextEditor.document
+    function updateView(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string):LiveViewUpdater{
+        console.log('replace')
+        textEditor.edit(function (editBuilder) {
+            editBuilder.replace(EMPTY_RANGE, ' ');  // this is basically a hack to know this is from ourselves
+            editBuilder.replace(range, blockText);
+                                                          // this will be position [0] of the event
+        }, {undoStopAfter:false, undoStopBefore:false});
+        return;
+    }
     return openShowDocument(documentName, initialContent, false)
         .then(editor => {
             // reset selection.  Otherwise all replaced text is highlighted in selection
@@ -624,12 +642,10 @@ export function liveDocumentView(token:{internal:boolean}, documentName:string, 
 
             const targetDocument = editor.document
             vscode.workspace.onDidChangeTextDocument(event=> {
-                if (token.internal) return
-                token.internal = false
+                if (isEventTriggeredFromSelf(event)) return 
                 const targetEditor = visibleTextEditorFromDocument(targetDocument)
                 if (!targetEditor) return // not visible, nothing to do
-                //if (event.document === targetDocument && !ignoreRangeInView(targetDocument).contains(event.contentChanges[0].range)) return
-                viewRenderer({
+                viewRenderer(updateView, {
                     sourceOfEventIsView:event.document=== targetDocument,
                     sourceDocument:lastActiveSourceDocument,
                     viewEditor:targetEditor,
@@ -638,10 +654,10 @@ export function liveDocumentView(token:{internal:boolean}, documentName:string, 
                 })
             })
             vscode.window.onDidChangeTextEditorSelection(event=> {
+                if (event.kind === undefined) return // selection caused by updating view
                 const targetEditor = visibleTextEditorFromDocument(targetDocument)
                 if (!targetEditor) return // not visible, nothing to do                
-                //if (event.textEditor.document === targetDocument) return
-                viewRenderer({
+                viewRenderer(updateView, {
                     sourceOfEventIsView:event.textEditor.document === targetDocument,
                     sourceDocument:lastActiveSourceDocument,
                     viewEditor:targetEditor,
