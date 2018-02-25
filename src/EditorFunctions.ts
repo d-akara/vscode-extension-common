@@ -606,3 +606,56 @@ export function triggerWordHighlighting() {
     vscode.commands.executeCommand('cursorLeft');
     vscode.commands.executeCommand('cursorRight');
 }
+
+export interface LiveDocumentViewEvent {
+    sourceDocument:vscode.TextDocument
+    viewEditor:vscode.TextEditor
+    sourceOfEventIsView:boolean
+    eventType:'selection'|'edit'
+    editChanges?:vscode.TextDocumentContentChangeEvent[]
+}
+
+export function liveDocumentView(token:{internal:boolean}, documentName:string, initialContent:string, ignoreRangeInView:Function, viewRenderer:(event:LiveDocumentViewEvent)=>void) {
+    let lastActiveSourceDocument = vscode.window.activeTextEditor.document
+    return openShowDocument(documentName, initialContent, false)
+        .then(editor => {
+            // reset selection.  Otherwise all replaced text is highlighted in selection
+            editor.selection = new vscode.Selection(new vscode.Position(1,6), new vscode.Position(1,6))
+
+            const targetDocument = editor.document
+            vscode.workspace.onDidChangeTextDocument(event=> {
+                if (token.internal) return
+                token.internal = false
+                const targetEditor = visibleTextEditorFromDocument(targetDocument)
+                if (!targetEditor) return // not visible, nothing to do
+                //if (event.document === targetDocument && !ignoreRangeInView(targetDocument).contains(event.contentChanges[0].range)) return
+                viewRenderer({
+                    sourceOfEventIsView:event.document=== targetDocument,
+                    sourceDocument:lastActiveSourceDocument,
+                    viewEditor:targetEditor,
+                    eventType:'edit',
+                    editChanges:event.contentChanges
+                })
+            })
+            vscode.window.onDidChangeTextEditorSelection(event=> {
+                const targetEditor = visibleTextEditorFromDocument(targetDocument)
+                if (!targetEditor) return // not visible, nothing to do                
+                //if (event.textEditor.document === targetDocument) return
+                viewRenderer({
+                    sourceOfEventIsView:event.textEditor.document === targetDocument,
+                    sourceDocument:lastActiveSourceDocument,
+                    viewEditor:targetEditor,
+                    eventType:'selection'
+                })
+            })            
+            vscode.window.onDidChangeActiveTextEditor(event=> {
+                // when switching documents a selection change event is also sent most of the time
+                // if we update the document on this event, the selections will be wrong
+                // TODO - need to investigate work arounds to make the behavior more reliable
+                // but we are impared by vscodes unreliable behavior in this case
+                if (event.document !== targetDocument)
+                    lastActiveSourceDocument = event.document
+            })
+            return editor;
+        });
+}
