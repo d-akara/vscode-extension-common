@@ -618,58 +618,58 @@ export interface LiveDocumentViewEvent {
     eventType:'selection'|'edit'
     editChanges?:vscode.TextDocumentContentChangeEvent[]
 }
-export type LiveViewUpdater = (textEditor: vscode.TextEditor, range: vscode.Range, blockText: string)=>void
+export type LiveViewUpdater = (textEditor: vscode.TextEditor, range: vscode.Range, blockText: string)=>Thenable<boolean>
 export type LiveViewRenderer = (update:LiveViewUpdater, event:LiveDocumentViewEvent)=>void
 
 function isEventTriggeredFromSelf(event:vscode.TextDocumentChangeEvent) {
     console.log('events', event.contentChanges.length)
     return event.contentChanges.length === 2;
 }
-export function liveDocumentView(documentName:string, initialContent:string, viewRenderer:LiveViewRenderer) {
+export async function liveDocumentView(documentName:string, initialContent:string, viewRenderer:LiveViewRenderer) {
     let lastActiveSourceDocument = vscode.window.activeTextEditor.document
-    function updateView(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string):LiveViewUpdater{
-        console.log('replace')
-        textEditor.edit(function (editBuilder) {
-            editBuilder.replace(EMPTY_RANGE, ' ');  // this is basically a hack to know this is from ourselves
+    function updateView(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string) {
+        return textEditor.edit(function (editBuilder) {
             editBuilder.replace(range, blockText);
-                                                          // this will be position [0] of the event
         }, {undoStopAfter:false, undoStopBefore:false});
-        return;
     }
-    return openShowDocument(documentName, initialContent, false)
-        .then(editor => {
-            const viewDocument = editor.document
-            vscode.workspace.onDidChangeTextDocument(event=> {
-                if (isEventTriggeredFromSelf(event)) return 
-                const targetEditor = visibleTextEditorFromDocument(viewDocument)
-                if (!targetEditor) return // not visible, nothing to do
-                viewRenderer(updateView, {
-                    sourceOfEventIsView:event.document=== viewDocument,
-                    sourceDocument:lastActiveSourceDocument,
-                    viewEditor:targetEditor,
-                    eventType:'edit',
-                    editChanges:event.contentChanges
-                })
-            })
-            vscode.window.onDidChangeTextEditorSelection(event=> {
-                if (event.kind === undefined) return // selection caused by updating view
-                const targetEditor = visibleTextEditorFromDocument(viewDocument)
-                if (!targetEditor) return // not visible, nothing to do                
-                viewRenderer(updateView, {
-                    sourceOfEventIsView:event.textEditor.document === viewDocument,
-                    sourceDocument:lastActiveSourceDocument,
-                    viewEditor:targetEditor,
-                    eventType:'selection'
-                })
-            })            
-            vscode.window.onDidChangeActiveTextEditor(event=> {
-                // when switching documents a selection change event is also sent most of the time
-                // if we update the document on this event, the selections will be wrong
-                // TODO - need to investigate work arounds to make the behavior more reliable
-                // but we are impared by vscodes unreliable behavior in this case
-                if (event.document !== viewDocument)
-                    lastActiveSourceDocument = event.document
-            })
-            return editor;
-        });
+    const scriptEditor = await openShowDocument('Macro Script.txt', initialContent, false)
+    const viewEditor   = await openShowDocument('Macro Preview.txt', '', false)
+    const scriptDocument = scriptEditor.document
+    const viewDocument   = viewEditor.document
+    vscode.workspace.onDidChangeTextDocument(event=> {
+        if (event.document === viewDocument) return 
+        const scriptEditor = visibleTextEditorFromDocument(scriptDocument)
+        const sourceEditor = visibleTextEditorFromDocument(lastActiveSourceDocument)
+        if (!scriptEditor || !sourceEditor) return // not visible, nothing to do
+        viewRenderer(updateView, {
+            sourceEditor: sourceEditor,
+            scriptEditor: scriptEditor,
+            viewEditor:viewEditor,
+            eventOrigin: event.document===scriptDocument?'script':'source',
+            eventType:'edit',
+            editChanges:event.contentChanges
+        })
+    })
+    vscode.window.onDidChangeTextEditorSelection(event=> {
+        if (event.kind === undefined) return // selection caused by updating view
+        if (event.textEditor.document === viewDocument) return 
+        const scriptEditor = visibleTextEditorFromDocument(scriptDocument)
+        const sourceEditor = visibleTextEditorFromDocument(lastActiveSourceDocument)
+        if (!scriptEditor || !sourceEditor) return // not visible, nothing to do
+        viewRenderer(updateView, {
+            sourceEditor: sourceEditor,
+            scriptEditor: scriptEditor,
+            viewEditor:viewEditor,
+            eventOrigin: event.textEditor.document===scriptDocument?'script':'source',
+            eventType:'selection'
+        })
+    })            
+    vscode.window.onDidChangeActiveTextEditor(event=> {
+        // when switching documents a selection change event is also sent most of the time
+        // if we update the document on this event, the selections will be wrong
+        // TODO - need to investigate work arounds to make the behavior more reliable
+        // but we are impared by vscodes unreliable behavior in this case
+        if (event.document !== scriptDocument && event.document !== viewDocument)
+            lastActiveSourceDocument = event.document
+    })
 }
