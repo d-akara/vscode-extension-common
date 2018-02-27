@@ -611,9 +611,10 @@ export function triggerWordHighlighting() {
 }
 
 export interface LiveDocumentViewEvent {
-    sourceDocument:vscode.TextDocument
+    sourceEditor:vscode.TextEditor
+    scriptEditor:vscode.TextEditor
     viewEditor:vscode.TextEditor
-    sourceOfEventIsView:boolean
+    eventOrigin:'source'|'script'
     eventType:'selection'|'edit'
     editChanges?:vscode.TextDocumentContentChangeEvent[]
 }
@@ -637,16 +638,13 @@ export function liveDocumentView(documentName:string, initialContent:string, vie
     }
     return openShowDocument(documentName, initialContent, false)
         .then(editor => {
-            // reset selection.  Otherwise all replaced text is highlighted in selection
-            editor.selection = new vscode.Selection(new vscode.Position(1,6), new vscode.Position(1,6))
-
-            const targetDocument = editor.document
+            const viewDocument = editor.document
             vscode.workspace.onDidChangeTextDocument(event=> {
                 if (isEventTriggeredFromSelf(event)) return 
-                const targetEditor = visibleTextEditorFromDocument(targetDocument)
+                const targetEditor = visibleTextEditorFromDocument(viewDocument)
                 if (!targetEditor) return // not visible, nothing to do
                 viewRenderer(updateView, {
-                    sourceOfEventIsView:event.document=== targetDocument,
+                    sourceOfEventIsView:event.document=== viewDocument,
                     sourceDocument:lastActiveSourceDocument,
                     viewEditor:targetEditor,
                     eventType:'edit',
@@ -655,10 +653,10 @@ export function liveDocumentView(documentName:string, initialContent:string, vie
             })
             vscode.window.onDidChangeTextEditorSelection(event=> {
                 if (event.kind === undefined) return // selection caused by updating view
-                const targetEditor = visibleTextEditorFromDocument(targetDocument)
+                const targetEditor = visibleTextEditorFromDocument(viewDocument)
                 if (!targetEditor) return // not visible, nothing to do                
                 viewRenderer(updateView, {
-                    sourceOfEventIsView:event.textEditor.document === targetDocument,
+                    sourceOfEventIsView:event.textEditor.document === viewDocument,
                     sourceDocument:lastActiveSourceDocument,
                     viewEditor:targetEditor,
                     eventType:'selection'
@@ -669,7 +667,7 @@ export function liveDocumentView(documentName:string, initialContent:string, vie
                 // if we update the document on this event, the selections will be wrong
                 // TODO - need to investigate work arounds to make the behavior more reliable
                 // but we are impared by vscodes unreliable behavior in this case
-                if (event.document !== targetDocument)
+                if (event.document !== viewDocument)
                     lastActiveSourceDocument = event.document
             })
             return editor;
