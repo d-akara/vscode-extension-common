@@ -52,6 +52,11 @@ export function makeRangeFromLineToEnd(document: vscode.TextDocument, lineStart:
     return new vscode.Range(new vscode.Position(lineStart,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
 }
 
+export function makeRangeFromStartToLine(document: vscode.TextDocument, lineEnd:number) {
+    const rangeLastLine = document.lineAt(lineEnd).range.end;
+    return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
+}
+
 export function expandRangeFullLineWidth(document: vscode.TextDocument, range: vscode.Range) {
     return new vscode.Range(range.start.line, 0, range.end.line, document.lineAt(range.end.line).text.length);
 }
@@ -617,6 +622,7 @@ export interface LiveDocumentViewEvent {
     eventOrigin:'source'|'script'
     eventType:'selection'|'edit'
     editChanges?:vscode.TextDocumentContentChangeEvent[]
+    scriptCursorMoved?: 'vertical'|'horizontal'
 }
 export type LiveViewUpdater = (textEditor: vscode.TextEditor, range: vscode.Range, blockText: string)=>Thenable<boolean>
 export type LiveViewRenderer = (update:LiveViewUpdater, event:LiveDocumentViewEvent)=>void
@@ -625,6 +631,11 @@ function isEventTriggeredFromSelf(event:vscode.TextDocumentChangeEvent) {
     console.log('events', event.contentChanges.length)
     return event.contentChanges.length === 2;
 }
+
+function documentExtension(document:vscode.TextDocument) {
+    return document.fileName.substr(document.fileName.lastIndexOf('.') + 1)
+}
+
 export async function liveDocumentView(documentName:string, initialContent:string, viewRenderer:LiveViewRenderer) {
     let lastActiveSourceDocument = vscode.window.activeTextEditor.document
     function updateView(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string) {
@@ -632,10 +643,12 @@ export async function liveDocumentView(documentName:string, initialContent:strin
             editBuilder.replace(range, blockText);
         }, {undoStopAfter:false, undoStopBefore:false});
     }
-    const scriptEditor = await openShowDocument('Macro Script.txt', initialContent, false)
-    const viewEditor   = await openShowDocument('Macro Preview.txt', '', false)
+    const scriptEditor = await openShowDocument('Macro Script.js', initialContent, false)
+    const viewEditor   = await openShowDocument('Macro Preview.' + documentExtension(lastActiveSourceDocument), '', false)
     const scriptDocument = scriptEditor.document
     const viewDocument   = viewEditor.document
+    let lastScriptSelection = scriptEditor.selection
+
     vscode.workspace.onDidChangeTextDocument(event=> {
         if (event.document === viewDocument) return 
         const scriptEditor = visibleTextEditorFromDocument(scriptDocument)
@@ -656,12 +669,24 @@ export async function liveDocumentView(documentName:string, initialContent:strin
         const scriptEditor = visibleTextEditorFromDocument(scriptDocument)
         const sourceEditor = visibleTextEditorFromDocument(lastActiveSourceDocument)
         if (!scriptEditor || !sourceEditor) return // not visible, nothing to do
+        const eventOrigin = event.textEditor.document===scriptDocument?'script':'source'
+        let cursorMoved
+        if (eventOrigin === 'script') {
+            if (lastScriptSelection.active.line !== scriptEditor.selection.active.line) {
+                cursorMoved = 'vertical'
+            } else {
+                cursorMoved = 'horizontal'
+            }
+            lastScriptSelection = scriptEditor.selection
+        }
+        
         viewRenderer(updateView, {
             sourceEditor: sourceEditor,
             scriptEditor: scriptEditor,
             viewEditor:viewEditor,
-            eventOrigin: event.textEditor.document===scriptDocument?'script':'source',
-            eventType:'selection'
+            eventOrigin,
+            eventType:'selection',
+            scriptCursorMoved: cursorMoved
         })
     })            
     vscode.window.onDidChangeActiveTextEditor(event=> {
