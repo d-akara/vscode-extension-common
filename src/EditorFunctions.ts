@@ -2,6 +2,8 @@
 import * as vscode from 'vscode'
 import { MarkdownString } from 'vscode';
 let orderby = require('lodash.orderby');
+export const debounce = require('lodash.debounce')
+
 export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
