@@ -470,7 +470,7 @@ function makeRangesFromCombined(textEditor: vscode.TextEditor, rangesLinesSource
     return newRanges;
 }
 
-export function createGutterDecorator(lineNumber:number, contentText:string, width:string) {
+export function createGutterDecorator(lineNumber:number, contentText:string, width:string):vscode.DecorationOptions {
     const posStart = new vscode.Position(lineNumber,0);
     
     return {
@@ -478,7 +478,21 @@ export function createGutterDecorator(lineNumber:number, contentText:string, wid
         renderOptions: {
             before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('badge.foreground')} 
         }
-        //hoverMessage: hoverMessage
+    };
+}
+
+export function createCursorDecoratorType() {
+    return vscode.window.createTextEditorDecorationType({
+        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+        borderColor: new vscode.ThemeColor('badge.foreground'),
+        borderWidth:'1px',
+        borderStyle:'solid'
+    });
+}
+export function createCursorDecorator(lineNumber:number, column:number):vscode.DecorationOptions {
+    const posStart = new vscode.Position(lineNumber,column);
+    return {
+        range: new vscode.Range(posStart, posStart)
     };
 }
 
