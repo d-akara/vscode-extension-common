@@ -719,3 +719,24 @@ export namespace View {
         })
     }
 }
+
+export namespace Application {
+
+    export function userSettingsPath() {
+        const os = require("os");
+
+        let PATH = process.env.APPDATA;
+        if (PATH) {
+            if (process.platform == 'darwin') {
+                PATH = process.env.HOME + '/Library/Application Support';
+            } else if (process.platform == 'linux') {
+                PATH = os.homedir() + '/.config';
+            } else {
+                PATH = '/var/local';
+            }
+        }
+
+        return PATH + '/Code/User/'
+    }
+
+}
