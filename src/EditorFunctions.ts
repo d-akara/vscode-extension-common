@@ -557,8 +557,8 @@ export namespace View {
         SELECT // not yet implemented
     }
 
-    export function promptOptions(items:QuickPickActionable[], onChange?:(item:QuickPickActionable, action:QuickPickActionType)=>any) {
-        onChange(null, QuickPickActionType.SHOW)
+    export function promptOptions(items:QuickPickActionable[], onChange?:(item:QuickPickActionable, action:QuickPickActionType)=>any):Thenable<QuickPickActionable|void> {
+        if (onChange) onChange(null, QuickPickActionType.SHOW)
         return vscode.window.showQuickPick(items, {ignoreFocusOut:true}).then(item=>{
             if (!item) return null
             if (item.children) {
@@ -571,7 +571,7 @@ export namespace View {
                     promptOptions(children).then(selectedChild=>{
                         if (item.value != selectedChild) {
                             item.value = selectedChild
-                            onChange(item, QuickPickActionType.ENTER)
+                            if (onChange) onChange(item, QuickPickActionType.ENTER)
                         }
                         return promptOptions(items, onChange)
                     })
@@ -582,26 +582,29 @@ export namespace View {
                 item.input.validateInput = (input)=> {
                     if (item.value != input) {
                         item.value = input;
-                        return onChange(item, QuickPickActionType.INPUT)
+                        // allows responding to characters as they are typed into the input box
+                        if (onChange)
+                            return onChange(item, QuickPickActionType.INPUT)
                     }
                     return null
                 }
                 if (!item.input.prompt) item.input.prompt = item.description
                 return vscode.window.showInputBox(item.input).then(inputText=>{
-                    if (!item.final) {
-                        if (item.value != inputText) {
-                            item.value = inputText
-                            onChange(item, QuickPickActionType.ENTER)
-                        }
-                        return promptOptions(items, onChange)
+                    if (item.input.value != inputText) {  // has the original value changed?
+                        item.value = inputText
+                        if (onChange) onChange(item, QuickPickActionType.ENTER)
                     }
+                    if (!item.final) {
+                        return promptOptions(items, onChange)
+                    } 
+                    return item
                 })
             } else if (item.value === false || item.value === true) {
                 item.value =! item.value
-                onChange(item, QuickPickActionType.ENTER)
+                if (onChange) onChange(item, QuickPickActionType.ENTER)
                 return promptOptions(items, onChange)
             }
-            onChange(item, QuickPickActionType.ENTER)
+            if (onChange) onChange(item, QuickPickActionType.ENTER)
             return item
         })
     }
@@ -730,7 +733,7 @@ export namespace View {
         const disposables = [] as vscode.Disposable[]
         const documentEditor = visibleTextEditorFromDocument(document)
         let lastEditorSelection = documentEditor.selection
-        
+
         disposables.push(vscode.workspace.onDidChangeTextDocument(event=> {
             if (event.document !== document) return
             const editor = visibleTextEditorFromDocument(document)
