@@ -629,6 +629,10 @@ export namespace View {
         return vscode.window.visibleTextEditors.find(editor=>editor.document===document)
     }
 
+    export function visibleTextEditorByColumn(column:number) {
+        return vscode.window.visibleTextEditors.find(editor=>editor.viewColumn === column)
+    }    
+
     export function triggerWordHighlighting() {
         // Move the cursor so that vscode will reapply the word highlighting
         vscode.commands.executeCommand('cursorLeft');
@@ -652,10 +656,6 @@ export namespace View {
         return event.contentChanges.length === 2;
     }
 
-    function documentExtension(document:vscode.TextDocument) {
-        return document.fileName.substr(document.fileName.lastIndexOf('.') + 1)
-    }
-
     export async function liveDocumentView(documentName:string, initialContent:string, viewRenderer:LiveViewRenderer) {
         let lastActiveSourceDocument = vscode.window.activeTextEditor.document
         function updateView(textEditor: vscode.TextEditor, range: vscode.Range, blockText: string) {
@@ -664,7 +664,7 @@ export namespace View {
             }, {undoStopAfter:false, undoStopBefore:false});
         }
         const scriptEditor = await openShowDocument('Macro Script.js', initialContent, false)
-        const viewEditor   = await openShowDocument('Macro Preview.' + documentExtension(lastActiveSourceDocument), '', false)
+        const viewEditor   = await openShowDocument('Macro Preview.' + Application.documentExtension(lastActiveSourceDocument), '', false)
         const scriptDocument = scriptEditor.document
         const viewDocument   = viewEditor.document
         let lastScriptSelection = scriptEditor.selection
@@ -718,9 +718,63 @@ export namespace View {
                 lastActiveSourceDocument = event.document
         })
     }
+
+    export interface DocumentWatchEvent {
+        editor: vscode.TextEditor
+        eventType: 'selection'|'edit'
+        editChanges?: vscode.TextDocumentContentChangeEvent[]
+        cursorMoved?: 'vertical'|'horizontal'
+    }
+
+    export function watchDocument(document:vscode.TextDocument, onEvent:(event:DocumentWatchEvent)=>void) {
+        const disposables = [] as vscode.Disposable[]
+        const documentEditor = visibleTextEditorFromDocument(document)
+        let lastEditorSelection = documentEditor.selection
+        
+        disposables.push(vscode.workspace.onDidChangeTextDocument(event=> {
+            if (event.document !== document) return
+            const editor = visibleTextEditorFromDocument(document)
+            if (!editor) return // not visible, nothing to do
+            onEvent({
+                editor,
+                eventType: 'edit',
+                editChanges: event.contentChanges
+            })
+        }))
+
+        disposables.push(vscode.window.onDidChangeTextEditorSelection(event=> {
+            if (event.kind === undefined) return // selection caused by programmitc updating view
+            if (event.textEditor.document !== document) return
+            const editor = visibleTextEditorFromDocument(document)
+            if (!editor) return // not visible, nothing to do
+
+            let cursorMoved
+            if (lastEditorSelection.active.line !== editor.selection.active.line) {
+                cursorMoved = 'vertical'
+            } else {
+                cursorMoved = 'horizontal'
+            }
+            lastEditorSelection = editor.selection
+
+            onEvent({
+                editor,
+                eventType: 'selection',
+                cursorMoved
+            })
+        }))
+
+        disposables.push(vscode.workspace.onDidCloseTextDocument(document=> {
+            disposables.forEach(disposable=>disposable.dispose())
+        }))
+    }
 }
 
+
+
 export namespace Application {
+    export function documentExtension(document:vscode.TextDocument) {
+        return document.fileName.substr(document.fileName.lastIndexOf('.') + 1)
+    }
 
     export function userSettingsPath() {
         const os = require("os");
