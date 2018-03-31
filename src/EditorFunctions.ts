@@ -609,23 +609,40 @@ export namespace View {
         })
     }
 
+    let openedDocuments = [] as vscode.TextDocument[]
+    vscode.workspace.onDidCloseTextDocument(closedDocument => {
+        const closedIndex = openedDocuments.indexOf(closedDocument);
+        if (closedIndex === -1) return
+        openedDocuments = openedDocuments.splice(closedIndex, 1)
+    })
     /**
      * Open new document if not already open.
-     * Show document in next editor group
+     * Show document in next editor group if not specified
      * @param name 
      * @param content 
      * @param preserveFocus 
      */
-    export function openShowDocument(name: string, content: string, preserveFocus=true) {
-        const nextColumn = vscode.window.activeTextEditor.viewColumn === 3 ? 2 : 1 + vscode.window.activeTextEditor.viewColumn
-        return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:'+name))
-            .then(document => vscode.window.showTextDocument(document, nextColumn, preserveFocus))
-            .then(editor=> {
-                const originalSelection = editor.selection
-                Modify.replace(editor, Region.makeRangeDocument(editor.document), content)
-                editor.selection = originalSelection
-                return editor;
-            })
+    export async function openShowDocument(name: string, content: string, preserveFocus=true, viewColumn?:number) {
+        if (!viewColumn)
+            viewColumn = vscode.window.activeTextEditor.viewColumn === 3 ? 2 : 1 + vscode.window.activeTextEditor.viewColumn
+
+        let editor:vscode.TextEditor
+        let document = openedDocuments.find(openDocument => openDocument.fileName === name)
+        if (!document) {
+            document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:'+name))
+            openedDocuments.push(document)
+            editor   = await vscode.window.showTextDocument(document, viewColumn, preserveFocus)
+        } else {
+            editor   = visibleTextEditorFromDocument(document)
+            if (!editor)
+                editor = await vscode.window.showTextDocument(document, viewColumn, preserveFocus)
+        }
+
+        const originalSelection = editor.selection
+        Modify.replace(editor, Region.makeRangeDocument(editor.document), content)
+        editor.selection = originalSelection
+        return editor;
+
     }
 
     export function visibleTextEditorFromDocument(document:vscode.TextDocument) {
@@ -635,7 +652,15 @@ export namespace View {
     export function visibleTextEditorByColumn(column:number) {
         return vscode.window.visibleTextEditors.find(editor=>editor.viewColumn === column)
     }    
-
+    export function setFocusOnEditorColumn(column:number) {
+        let command
+        switch (column) {
+            case 1: command = 'workbench.action.focusFirstEditorGroup' ;break
+            case 2: command = 'workbench.action.focusSecondEditorGroup';break
+            case 3: command = 'workbench.action.focusThirdEditorGroup' ;break
+        }
+        return vscode.commands.executeCommand(command)
+    }
     export function triggerWordHighlighting() {
         // Move the cursor so that vscode will reapply the word highlighting
         vscode.commands.executeCommand('cursorLeft');
@@ -728,8 +753,11 @@ export namespace View {
         editChanges?: vscode.TextDocumentContentChangeEvent[]
         cursorMoved?: 'vertical'|'horizontal'
     }
-
-    export function watchDocument(document:vscode.TextDocument, onEvent:(event:DocumentWatchEvent)=>void) {
+    export interface DocumentWatcher {
+        dispose()
+        document: vscode.TextDocument
+    }
+    export function watchDocument(document:vscode.TextDocument, onEvent:(event:DocumentWatchEvent)=>void): DocumentWatcher {
         const disposables = [] as vscode.Disposable[]
         const documentEditor = visibleTextEditorFromDocument(document)
         let lastEditorSelection = documentEditor.selection
@@ -766,9 +794,16 @@ export namespace View {
             })
         }))
 
-        disposables.push(vscode.workspace.onDidCloseTextDocument(document=> {
-            disposables.forEach(disposable=>disposable.dispose())
+        disposables.push(vscode.workspace.onDidCloseTextDocument(closedDocument=> {
+            if (document !== closedDocument) return
+            dispose()
         }))
+        
+        function dispose() {
+            disposables.forEach(disposable=>disposable.dispose())
+        }
+
+        return {dispose, document}
     }
 }
 
