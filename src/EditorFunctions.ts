@@ -805,6 +805,10 @@ export namespace View {
 
         return {dispose, document}
     }
+
+    export function makeCodeLens(title:string, line:number, column:number, onClick:Function) {
+        return new vscode.CodeLens(new vscode.Range(line,column,line,column), {title, command:'dakara-internal.oncommand', arguments: [onClick]})
+    }
 }
 
 
@@ -832,3 +836,6 @@ export namespace Application {
     }
 
 }
+
+// set context for 'when' expressions in configuration options
+// vscode.commands.executeCommand('setContext', 'myExtKey', true)
