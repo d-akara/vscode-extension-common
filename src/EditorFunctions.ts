@@ -835,6 +835,27 @@ export namespace Application {
         return PATH + '/Code/User/'
     }
 
+    /**
+     * Cycle through a set of possible settings values for whatever is the most local defined scope
+     * @param values 
+     * @param section 
+     * @param property 
+     */
+    export async function settingsCycleNext(section:string, property:string, values: any[]) {
+        const settingsConfig = vscode.workspace.getConfiguration(section).inspect(property)
+        let targetScope = vscode.ConfigurationTarget.Global
+        if (settingsConfig.workspaceValue) targetScope = vscode.ConfigurationTarget.Workspace
+        if (settingsConfig.workspaceFolderValue) targetScope = vscode.ConfigurationTarget.WorkspaceFolder
+
+        const currentValue = vscode.workspace.getConfiguration(section).get(property)
+        const valueIndex = values.indexOf(currentValue)
+        const nextIndex = valueIndex === values.length - 1 ? 0 : valueIndex + 1
+        const nextValue = values[nextIndex]
+        
+        await vscode.workspace.getConfiguration(section).update(property, nextValue, targetScope)
+        return nextValue
+    }
+
 }
 
 // set context for 'when' expressions in configuration options
