@@ -809,6 +809,39 @@ export namespace View {
     export function makeCodeLens(title:string, line:number, column:number, onClick:Function) {
         return new vscode.CodeLens(new vscode.Range(line,column,line,column), {title, command:'dakara-internal.oncommand', arguments: [onClick]})
     }
+    
+    export interface TreeItemRoot extends TreeWithChildren {}
+    export type TreeWithChildren = {
+        parent?: TreeWithChildren
+        children?: TreeItemActionable[] | (()=>Thenable<TreeItemActionable[]>)
+    }
+    export type TreeItemActionable = TreeWithChildren & vscode.TreeItem
+    export function makeTreeView(context: vscode.ExtensionContext, viewId:string, rootTreeItem: TreeItemActionable) {
+        let selected;
+        const emitter = new vscode.EventEmitter<string | null>();
+        const provider = {
+            onDidChangeTreeData: emitter.event,
+            getChildren: element=> {
+                const treeItemActionable = element as TreeItemActionable
+                let children = rootTreeItem.children;
+                if (element)
+                    children = treeItemActionable.children
+    
+                if (!children) return;
+    
+                if (children instanceof Function)
+                    return Promise.resolve(children())
+                else 
+                    return Promise.resolve(children)
+            },
+            getTreeItem: (treeItem:TreeItemActionable) => treeItem,
+            getParent: (treeItem:TreeItemActionable) => treeItem.parent
+        }
+    
+        const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
+    
+        return {treeView, update: emitter.fire.bind(emitter)};
+    }
 }
 
 
