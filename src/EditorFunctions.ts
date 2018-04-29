@@ -816,7 +816,8 @@ export namespace View {
         children?: TreeItemActionable[] | (()=>Thenable<TreeItemActionable[]>)
     }
     export type TreeItemActionable = TreeWithChildren & vscode.TreeItem
-    export function makeTreeView(context: vscode.ExtensionContext, viewId:string, rootTreeItem: TreeItemActionable) {
+    export function makeTreeViewManager(context: vscode.ExtensionContext, viewId:string, rootTreeItem?: TreeItemActionable) {
+        if (!rootTreeItem) rootTreeItem = {}
         let selected;
         const emitter = new vscode.EventEmitter<string | null>();
         const provider = {
@@ -840,7 +841,7 @@ export namespace View {
     
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
     
-        return {treeView, update: emitter.fire.bind(emitter)};
+        return {treeView, rootTreeItem, update: emitter.fire.bind(emitter)};
     }
 }
 
