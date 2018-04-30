@@ -1,6 +1,8 @@
 'use strict';
 import * as vscode from 'vscode'
 import { MarkdownString } from 'vscode';
+import * as FS from 'fs'
+import * as Path from 'path'
 let orderby = require('lodash.orderby');
 export const debounce = require('lodash.debounce')
 
@@ -8,8 +10,9 @@ export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
-
+const ICON_PATHS = new Map<string, string>()
 const EMPTY_RANGE = new vscode.Range(new vscode.Position(0,0), new vscode.Position(0,1));
+
 export namespace Region {
     export function makeRangeFromFoldingRegion(document: vscode.TextDocument, foldableLineNumber: number, tabSize: number) {
         let endLineNumber = foldableLineNumber;
@@ -842,6 +845,28 @@ export namespace View {
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
     
         return {treeView, rootTreeItem, update: emitter.fire.bind(emitter)};
+    }
+
+    export function registerIcons(context: vscode.ExtensionContext, basepath:string) {
+        let paths = FS.readdirSync(context.asAbsolutePath(Path.join(basepath, 'light')))
+        paths.map(path => Path.basename(path)).forEach(path => {
+            if (path.endsWith('.svg'))
+                ICON_PATHS.set(path.substring(0, path.length - 4) + '.light', context.asAbsolutePath(Path.join(basepath, 'light', path)))
+        })
+    
+        paths = FS.readdirSync(context.asAbsolutePath(Path.join(basepath, 'dark')))
+        paths.map(path => Path.basename(path)).forEach(path => {
+            if (path.endsWith('.svg'))
+                ICON_PATHS.set(path.substring(0, path.length - 4) + '.dark', context.asAbsolutePath(Path.join(basepath, 'dark', path)))
+        })
+    
+    }    
+
+    export function makeIconPaths(iconId:string) {
+        return {
+            light: ICON_PATHS.get(iconId + '.light'),
+            dark: ICON_PATHS.get(iconId + '.dark')
+        }
     }
 }
 
