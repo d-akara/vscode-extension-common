@@ -832,19 +832,38 @@ export namespace View {
                     children = treeItemActionable.children
     
                 if (!children) return;
-    
+
                 if (children instanceof Function)
                     return Promise.resolve(children())
                 else 
                     return Promise.resolve(children)
             },
-            getTreeItem: (treeItem:TreeItemActionable) => treeItem,
+            getTreeItem: (treeItem:TreeItemActionable) => {
+                if (treeItem.children && !treeItem.collapsibleState)
+                    treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed
+                return treeItem
+            },
             getParent: (treeItem:TreeItemActionable) => treeItem.parent
         }
     
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
+
+        function _findTreeItem(currentItem: TreeItemActionable, isFound: (treeItem) => boolean) {
+            if (isFound(currentItem)) return currentItem;
+
+            if (currentItem.children instanceof Array) {
+                for(const childItem of currentItem.children) {
+                    const item = _findTreeItem(childItem, isFound)
+                    if (item) return item
+                }
+            }
+        }
+        function findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean) {
+            return _findTreeItem(rootTreeItem, isFound)
+        }
+
     
-        return {treeView, rootTreeItem, update: emitter.fire.bind(emitter)};
+        return {treeView, rootTreeItem, findTreeItem, update: emitter.fire.bind(emitter)};
     }
 
     export function registerIcons(context: vscode.ExtensionContext, basepath:string) {
