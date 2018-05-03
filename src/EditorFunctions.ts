@@ -396,7 +396,7 @@ export namespace Lines {
     }
 
     export function textFromLines(document: vscode.TextDocument, lines: Array<vscode.TextLine>) {
-        return lines.map(line=>line.text).reduce((text, lineText)=> text+lineText+'\n')
+        return lines.map(line=>line.text).reduce((text, lineText)=> text + lineText+'\n', '')
     }
 }
 
