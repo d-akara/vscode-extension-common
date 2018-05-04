@@ -848,7 +848,7 @@ export namespace View {
     
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
 
-        function _findTreeItem(currentItem: TreeItemActionable, isFound: (treeItem) => boolean) {
+        function _findTreeItem(currentItem: TreeItemActionable, isFound: (treeItem) => boolean): TreeItemActionable {
             if (isFound(currentItem)) return currentItem;
 
             if (currentItem.children instanceof Array) {
@@ -858,7 +858,7 @@ export namespace View {
                 }
             }
         }
-        function findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean) {
+        function findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean): TreeItemActionable {
             return _findTreeItem(rootTreeItem, isFound)
         }
 
