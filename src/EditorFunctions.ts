@@ -934,6 +934,33 @@ export namespace Application {
         return nextValue
     }
 
+    export function registerCommand(context: vscode.ExtensionContext, command: string, callback: (...args: any[]) => any, thisArg?: any) {
+        context.subscriptions.push(vscode.commands.registerCommand(command, callback))
+    }
+
+    export function registerInternalCommandProxy(context: vscode.ExtensionContext) {
+        let disposable = vscode.commands.registerCommand('dakara-internal.oncommand', (onCommand:Function, ...params) => onCommand.apply(this, params))
+        context.subscriptions.push(disposable);
+    }
+
+    export function makeCommandProxy(onCommand:Function, ...parameters): vscode.Command {
+        parameters = [onCommand].concat(parameters)
+        return {title: 'internal', command: 'dakara-internal.oncommand', arguments: parameters}
+    }
+}
+
+export namespace Glyph {
+    export const CIRCLE_MODIFY = '\u{20dd}' 
+    export const DOUBLE_TRIPLE_DASH = '\u{2637}'
+    export const CIRCLE_DOT = '\u{2609}'
+    export const CIRCLE_LARGE_DOT = '\u{25C9}'
+    export const GEAR = '\u{2699}'
+    export const TRI_DOT = '\u{2234}'
+    export const TRI_DOT_VERTICAL = '\u{22ee}'
+    export const TRI_DOT_HORIZONTAL = '\u{22ef}'
+    export const DASHES_STACKED = '\u{254f}'
+    export const SEARCH = '\u{1f50d}'
+    export const TIMER = '\u{1f558}'
 }
 
 // set context for 'when' expressions in configuration options
