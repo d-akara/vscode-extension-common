@@ -52,6 +52,15 @@ export namespace Region {
         return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
     }
 
+    export function makeRangeOfSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
+        let range: vscode.Range;
+        if (selection.isEmpty) {
+            range = document.getWordRangeAtPosition(new vscode.Position(selection.anchor.line, selection.anchor.character));
+        } 
+        if (!range) range = selection as vscode.Range;
+        return range
+    }
+
     export function makeRangeFromLineToEnd(document: vscode.TextDocument, lineStart:number) {
         const rangeLastLine = document.lineAt(document.lineCount - 1).range.end;
         return new vscode.Range(new vscode.Position(lineStart,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
@@ -139,6 +148,17 @@ export namespace Region {
         })
     }
 
+    export function selectionsOrMatchesOrWordSelectionInDocument(textEditor: vscode.TextEditor) {
+        return selectionsOrMatchesAsSelections(textEditor).then(selections=> {
+            if (selections.length === 1) {
+                const wordOrSelectionRange = makeRangeOfSelectionOrWordAtCursor(textEditor.document, selections[0]);
+                const text = textEditor.document.getText(wordOrSelectionRange)
+                return findAllRangesContaining(textEditor.document, text)
+            }
+            return selections;
+        })
+    }
+
     export function textFromRangeOrCursorToEndLine(text: string, range: vscode.Range) {
         if (range.isSingleLine && range.start.character === range.end.character)
             // select to end of line if range does not span characters
@@ -150,7 +170,19 @@ export namespace Region {
         return ranges.map(range=>{
             return document.getText(range);
         })
-    }     
+    }    
+    
+    export function findAllRangesContaining(document: vscode.TextDocument, text: string) {
+        let ranges = Array<vscode.Range>();
+        for (let index = 0; index < document.lineCount; index++) {
+            const line = document.lineAt(index);
+            const indexMatch = line.text.indexOf(text)
+            if (indexMatch > -1) {
+                ranges.push(new vscode.Range(new vscode.Position(line.lineNumber, indexMatch), new vscode.Position(line.lineNumber, indexMatch + text.length) ))
+            }
+        }
+        return ranges;
+    }
 }
 
 export namespace Lines {
@@ -477,6 +509,8 @@ export namespace Modify {
 }
 
 export namespace View {
+    // TODO - might be useful, how to render decoration on blank line offset
+    // https://github.com/CoenraadS/BracketPair/blob/d60719cc8bf0e115a2d463b7b58b14bfc849220a/src/settings.ts#L264-L266
     export function createGutterDecorator(lineNumber:number, contentText:string, width:string):vscode.DecorationOptions {
         const posStart = new vscode.Position(lineNumber,0);
         
@@ -816,11 +850,41 @@ export namespace View {
     export interface TreeItemRoot extends TreeWithChildren {}
     export type TreeWithChildren = {
         parent?: TreeWithChildren
-        children?: TreeItemActionable[] | (()=>Thenable<TreeItemActionable[]>)
+        children?: TreeItemActionable[]
+        resolveChildren?: ()=>Thenable<TreeItemActionable[]>  // TODO - not implemented
     }
-    export type TreeItemActionable = TreeWithChildren & vscode.TreeItem
+    export interface TreeItemActionable extends TreeWithChildren , vscode.TreeItem {
+        metadata?:any
+    }
+   
+    /**
+     * 
+     * @param parent 
+     * @param item 
+     * @param atPosition return true to insert item between the prev and next position.  prev === null on first item and next === null on last item 
+     */
+    export function addTreeItem(parent:TreeItemActionable, item:TreeItemActionable, atPosition?: (prevItem:TreeItemActionable, nextItem:TreeItemActionable) => boolean) {
+        item.parent = parent
+        if (!parent.children) parent.children = []
+
+        if (atPosition) {
+            let prevItem = null;
+            for (let index = 0; index <= parent.children.length; index++) {
+                let nextItem = null;
+                if (index < parent.children.length)
+                    nextItem = parent.children[index];
+                if (atPosition(prevItem, nextItem)) {
+                    parent.children.splice(index, 0, item);
+                    break;
+                }
+                prevItem = nextItem
+            }
+        } else
+            parent.children.push(item)
+        return item
+    }
     export function makeTreeViewManager(context: vscode.ExtensionContext, viewId:string, rootTreeItem?: TreeItemActionable) {
-        if (!rootTreeItem) rootTreeItem = {}
+        if (!rootTreeItem) rootTreeItem = {children:[]}
         let selected;
         const emitter = new vscode.EventEmitter<string | null>();
         const provider = {
@@ -843,7 +907,10 @@ export namespace View {
                     treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed
                 return treeItem
             },
-            getParent: (treeItem:TreeItemActionable) => treeItem.parent
+            getParent: (treeItem:TreeItemActionable) => {
+                if (treeItem.parent === rootTreeItem) return null // our root tree item is a facade container not recognized by vscode
+                return treeItem.parent
+            }
         }
     
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
@@ -862,8 +929,23 @@ export namespace View {
             return _findTreeItem(rootTreeItem, isFound)
         }
 
-    
-        return {treeView, rootTreeItem, findTreeItem, update: emitter.fire.bind(emitter)};
+        function removeTreeItems(parent: TreeItemActionable, shouldRemove: (treeItem:TreeItemActionable, index:number) => boolean) {
+            parent.children = parent.children.filter(((treeItem, index) => !shouldRemove(treeItem, index)))
+        }
+
+        function removeTreeItem(treeItem: TreeItemActionable) {
+            const parent = treeItem.parent
+            if (!parent) return;
+
+            const childIndex = (parent.children as Array<TreeItemActionable>).indexOf(treeItem);
+            (parent.children as Array<TreeItemActionable>).splice(childIndex, 1);
+        }
+
+        function revealItem(treeItem: vscode.TreeItem, options?: { select?: boolean }) {
+            setTimeout(() => treeView.reveal(treeItem, options), 500)
+        }
+
+        return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, update: emitter.fire.bind(emitter)};
     }
 
     export function registerIcons(context: vscode.ExtensionContext, basepath:string) {
