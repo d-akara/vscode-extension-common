@@ -863,26 +863,20 @@ export namespace View {
      * @param item 
      * @param atPosition return true to insert item between the prev and next position.  prev === null on first item and next === null on last item 
      */
-    export function addTreeItem(parent:TreeItemActionable, item:TreeItemActionable, atPosition?: (prevItem:TreeItemActionable, nextItem:TreeItemActionable) => boolean) {
+    export function addTreeItem(parent:TreeItemActionable, item:TreeItemActionable, atPosition?: ((children: TreeItemActionable[]) => number) | number) {
         item.parent = parent
         if (!parent.children) parent.children = []
 
-        if (atPosition) {
-            let prevItem = null;
-            for (let index = 0; index <= parent.children.length; index++) {
-                let nextItem = null;
-                if (index < parent.children.length)
-                    nextItem = parent.children[index];
-                if (atPosition(prevItem, nextItem)) {
-                    parent.children.splice(index, 0, item);
-                    break;
-                }
-                prevItem = nextItem
-            }
-        } else
-            parent.children.push(item)
+        if (typeof atPosition === 'number') {
+            if (atPosition === -1) parent.children.push(item)  // last item if -1 position
+            else parent.children.splice(atPosition, 0, item)   // insert at position
+        } else if (typeof atPosition === 'function') {
+            parent.children.splice(atPosition(parent.children), 0, item)  // insert at position returned by function
+        } else 
+            parent.children.push(item) // default to insert last
         return item
     }
+
     export function makeTreeViewManager(context: vscode.ExtensionContext, viewId:string, rootTreeItem?: TreeItemActionable) {
         if (!rootTreeItem) rootTreeItem = {children:[]}
         let selected;
@@ -947,6 +941,8 @@ export namespace View {
 
         return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, update: emitter.fire.bind(emitter)};
     }
+
+    
 
     export function registerIcons(context: vscode.ExtensionContext, basepath:string) {
         let paths = FS.readdirSync(context.asAbsolutePath(Path.join(basepath, 'light')))
