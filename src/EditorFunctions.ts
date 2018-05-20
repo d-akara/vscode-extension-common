@@ -52,6 +52,19 @@ export namespace Region {
         return new vscode.Range(new vscode.Position(0,0), new vscode.Position(rangeLastLine.line, rangeLastLine.character));
     }
 
+    export function makeRangeLineStart(line: number) {
+        const linePosition = new vscode.Position(line, 0)
+        return new vscode.Range(linePosition, linePosition)
+    }
+
+    export function makeRangeLineEnd(line: vscode.TextLine) {
+        return new vscode.Range(line.range.end, line.range.end)
+    }
+
+    export function makeRangeLineText(line: vscode.TextLine) {
+        return new vscode.Range(new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex), line.range.end)
+    }
+
     export function makeRangeOfSelectionOrWordAtCursor(document: vscode.TextDocument, selection: vscode.Selection) {
         let range: vscode.Range;
         if (selection.isEmpty) {
@@ -517,7 +530,7 @@ export namespace View {
         return {
             range: new vscode.Range(posStart, posStart), 
             renderOptions: {
-                before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('badge.foreground')} 
+                before: {contentText, width, backgroundColor: new vscode.ThemeColor('editor.lineHighlightBackground'), color: new vscode.ThemeColor('pickerGroup.border')} 
             }
         };
     }
@@ -525,7 +538,7 @@ export namespace View {
     export function createCursorDecoratorType() {
         return vscode.window.createTextEditorDecorationType({
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-            borderColor: new vscode.ThemeColor('badge.foreground'),
+            borderColor: new vscode.ThemeColor('pickerGroup.border'),
             borderWidth:'1px',
             borderStyle:'solid'
         });
@@ -535,6 +548,36 @@ export namespace View {
         return {
             range: new vscode.Range(posStart, posStart)
         };
+    }
+
+    const registeredDecorationTypes = new Map<string, vscode.TextEditorDecorationType>()
+    export function makeDecoratorType(decoratorName: string, decoratorOptions: vscode.DecorationRenderOptions) {
+        let decorationType = registeredDecorationTypes.get(decoratorName)
+        if (!decorationType) {
+            decorationType = vscode.window.createTextEditorDecorationType(decoratorOptions)
+            registeredDecorationTypes.set(decoratorName, decorationType)
+        }
+        return decorationType
+    }
+
+    export function makeDecoratorLineAttention() {
+        return makeDecoratorType('line.attention', {
+            rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+            borderColor: new vscode.ThemeColor('pickerGroup.border'),
+            borderWidth:'2px',
+            borderStyle:'none solid none solid;',
+            backgroundColor: 'rgba(255, 255, 0, 0.1)',
+            isWholeLine: true
+        } as vscode.DecorationRenderOptions)
+    }
+
+    export function setLineDecorators(editor: vscode.TextEditor, decoration: vscode.TextEditorDecorationType, lines: vscode.TextLine[]) {
+        const decorationOptions = lines.map(line => {
+            return {
+                range: Region.makeRangeLineText(line)
+            } as vscode.DecorationOptions
+        })
+        editor.setDecorations(decoration, decorationOptions)
     }
 
     export function addMarkdownCommandLink(markdownString:MarkdownString, linkName:string, commandId:string, parameters:object) {
@@ -877,7 +920,7 @@ export namespace View {
         return item
     }
 
-    export function makeTreeViewManager(context: vscode.ExtensionContext, viewId:string, rootTreeItem?: TreeItemActionable) {
+    export function makeTreeViewManager(context: vscode.ExtensionContext, viewId:string, rootTreeItem?: TreeItemActionable): ITreeViewManager {
         if (!rootTreeItem) rootTreeItem = {children:[]}
         let selected;
         const emitter = new vscode.EventEmitter<string | null>();
@@ -909,7 +952,7 @@ export namespace View {
     
         const treeView = vscode.window.createTreeView(viewId, {treeDataProvider: provider});
 
-        function _findTreeItem(currentItem: TreeItemActionable, isFound: (treeItem) => boolean): TreeItemActionable {
+        function _findTreeItem(currentItem: TreeItemActionable, isFound: (treeItem) => boolean) {
             if (isFound(currentItem)) return currentItem;
 
             if (currentItem.children instanceof Array) {
@@ -919,7 +962,7 @@ export namespace View {
                 }
             }
         }
-        function findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean): TreeItemActionable {
+        function findTreeItem(isFound) {
             return _findTreeItem(rootTreeItem, isFound)
         }
 
@@ -939,10 +982,16 @@ export namespace View {
             setTimeout(() => treeView.reveal(treeItem, options), 500)
         }
 
-        return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, update: emitter.fire.bind(emitter)};
+        return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, update: emitter.fire.bind(emitter)} as ITreeViewManager;
     }
 
-    
+    export interface ITreeViewManager {
+        rootTreeItem: TreeItemRoot
+        findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean): TreeItemActionable
+        revealItem(treeItem: vscode.TreeItem, options?: { select?: boolean })
+        removeTreeItems(parent: TreeItemActionable, shouldRemove: (treeItem:TreeItemActionable, index:number) => boolean)
+        update: (treeItem?:TreeItemActionable) => void
+    }
 
     export function registerIcons(context: vscode.ExtensionContext, basepath:string) {
         let paths = FS.readdirSync(context.asAbsolutePath(Path.join(basepath, 'light')))
