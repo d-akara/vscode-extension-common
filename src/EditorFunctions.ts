@@ -967,6 +967,7 @@ export namespace View {
         }
 
         function removeTreeItems(parent: TreeItemActionable, shouldRemove: (treeItem:TreeItemActionable, index:number) => boolean) {
+            if (!parent.children) return
             parent.children = parent.children.filter(((treeItem, index) => !shouldRemove(treeItem, index)))
         }
 
