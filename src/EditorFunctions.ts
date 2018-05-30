@@ -141,6 +141,16 @@ export namespace Region {
         return matchesAsSelections(textEditor)
     }
 
+    export function matchesAsSelectionsOrSelections(textEditor: vscode.TextEditor) {
+        const originalSelections = textEditor.selections;
+
+        return matchesAsSelections(textEditor)
+        .then(matches => {
+            if ((matches.length > 1)) return Promise.resolve(matches);
+            return Promise.resolve(originalSelections);
+        })
+    }
+
     export function matchesAsSelections(textEditor: vscode.TextEditor) {
         const originalSelections = textEditor.selections;
         return vscode.commands.executeCommand('editor.action.selectAllMatches')
@@ -162,7 +172,7 @@ export namespace Region {
     }
 
     export function selectionsOrMatchesOrWordSelectionInDocument(textEditor: vscode.TextEditor) {
-        return selectionsOrMatchesAsSelections(textEditor).then(selections=> {
+        return matchesAsSelectionsOrSelections(textEditor).then(selections=> {
             if (selections.length === 1) {
                 const wordOrSelectionRange = makeRangeOfSelectionOrWordAtCursor(textEditor.document, selections[0]);
                 const text = textEditor.document.getText(wordOrSelectionRange)
@@ -827,16 +837,40 @@ export namespace View {
         })
     }
 
+    export interface DocumentChangeEvent extends vscode.TextDocumentContentChangeEvent {
+        linesDeltaCount: number
+        linesStart: number
+        charStart: number
+    }
+
     export interface DocumentWatchEvent {
         editor: vscode.TextEditor
+        document: vscode.TextDocument
         eventType: 'selection'|'edit'
-        editChanges?: vscode.TextDocumentContentChangeEvent[]
+        editChanges?: DocumentChangeEvent[]
         cursorMoved?: 'vertical'|'horizontal'
     }
     export interface DocumentWatcher {
         dispose()
         document: vscode.TextDocument
     }
+
+    function makeDocumentChangeEvent(event: vscode.TextDocumentContentChangeEvent): DocumentChangeEvent {
+        let newLines = 0
+        for (let index = 0; index < event.text.length ; index++) {
+            if (event.text[index] === '\n') newLines++
+        }
+        const replacedLines = event.range.end.line - event.range.start.line
+        return {
+            range: event.range,
+            rangeLength: event.rangeLength,
+            text: event.text,
+            linesDeltaCount: newLines - replacedLines,
+            linesStart: event.range.start.line,
+            charStart: event.range.start.character
+        }
+    }
+
     export function watchDocument(document:vscode.TextDocument, onEvent:(event:DocumentWatchEvent)=>void): DocumentWatcher {
         const disposables = [] as vscode.Disposable[]
         const documentEditor = visibleTextEditorFromDocument(document)
@@ -846,10 +880,12 @@ export namespace View {
             if (event.document !== document) return
             const editor = visibleTextEditorFromDocument(document)
             if (!editor) return // not visible, nothing to do
+            const changeEvents = event.contentChanges.map(event => makeDocumentChangeEvent(event))
             onEvent({
                 editor,
+                document,
                 eventType: 'edit',
-                editChanges: event.contentChanges
+                editChanges: changeEvents
             })
         }))
 
@@ -869,6 +905,7 @@ export namespace View {
 
             onEvent({
                 editor,
+                document,
                 eventType: 'selection',
                 cursorMoved
             })
@@ -886,6 +923,27 @@ export namespace View {
         return {dispose, document}
     }
 
+    export function watchEditors(onEvent:(event:DocumentWatchEvent)=>void) {
+        const disposables = [] as vscode.Disposable[]
+
+        disposables.push(vscode.workspace.onDidChangeTextDocument(event=> {
+            const editor = visibleTextEditorFromDocument(event.document)
+            const changeEvents = event.contentChanges.map(event => makeDocumentChangeEvent(event))
+            onEvent({
+                editor: editor,
+                document: event.document,
+                eventType: 'edit',
+                editChanges: changeEvents
+            })
+        }))
+        
+        function dispose() {
+            disposables.forEach(disposable=>disposable.dispose())
+        }
+
+        return {dispose}
+    }
+
     export function makeCodeLens(title:string, line:number, column:number, onClick:Function) {
         return new vscode.CodeLens(new vscode.Range(line,column,line,column), {title, command:'dakara-internal.oncommand', arguments: [onClick]})
     }
@@ -894,10 +952,11 @@ export namespace View {
     export type TreeWithChildren = {
         parent?: TreeWithChildren
         children?: TreeItemActionable[]
-        resolveChildren?: ()=>Thenable<TreeItemActionable[]>  // TODO - not implemented
+        childrenResolver?: ()=>Thenable<TreeItemActionable[]>  // TODO - not implemented
     }
     export interface TreeItemActionable extends TreeWithChildren , vscode.TreeItem {
-        metadata?:any
+        labelResolver?: (TreeItemActionable) => string
+        metadata?: any
     }
    
     /**
@@ -942,6 +1001,8 @@ export namespace View {
             getTreeItem: (treeItem:TreeItemActionable) => {
                 if (treeItem.children && !treeItem.collapsibleState)
                     treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed
+                if (treeItem.labelResolver)
+                    treeItem.label = treeItem.labelResolver(treeItem)
                 return treeItem
             },
             getParent: (treeItem:TreeItemActionable) => {
@@ -983,7 +1044,23 @@ export namespace View {
             setTimeout(() => treeView.reveal(treeItem, options), 500)
         }
 
-        return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, update: emitter.fire.bind(emitter)} as ITreeViewManager;
+        function forEachTreeItem(onTreeItem: (treeItem:TreeItemActionable) => void) {
+            let stack = [rootTreeItem] as TreeItemActionable[]
+            let currentItem: TreeItemActionable
+            while(currentItem = stack.pop()) {
+                // process item on stack
+                onTreeItem(currentItem)
+
+                // add next set to process
+                if (!currentItem.children) continue
+                for (const item of currentItem.children) {
+                    stack.push(item)
+                }
+            }
+
+        }
+
+        return {treeView, rootTreeItem, revealItem, removeTreeItem, removeTreeItems, findTreeItem, forEachTreeItem, update: emitter.fire.bind(emitter)} as ITreeViewManager;
     }
 
     export interface ITreeViewManager {
@@ -991,6 +1068,7 @@ export namespace View {
         findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean): TreeItemActionable
         revealItem(treeItem: vscode.TreeItem, options?: { select?: boolean })
         removeTreeItems(parent: TreeItemActionable, shouldRemove: (treeItem:TreeItemActionable, index:number) => boolean)
+        forEachTreeItem(onTreeItem: (treeItem:TreeItemActionable) => void)
         update: (treeItem?:TreeItemActionable) => void
     }
 
