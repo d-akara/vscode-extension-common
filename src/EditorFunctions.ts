@@ -17,9 +17,14 @@ export namespace Region {
     export function makeRangeFromFoldingRegion(document: vscode.TextDocument, foldableLineNumber: number, tabSize: number) {
         let endLineNumber = foldableLineNumber;
         const endFoldLine = Lines.findNextLineDownSameSpacingOrLeft(document, foldableLineNumber, tabSize);
-        // TODO review 'makeRangeFromFoldingRegionRelativeLevel'.  Should we return next line if current is not foldable.
-        // Need to check who uses this function and behavior
-        if (endFoldLine) endLineNumber = endFoldLine.lineNumber;
+        // If end fold line is not 1 greater than starting line, then there are no children.  Not foldable
+        // the end fold line is the first line outside of the folding region
+        if (endFoldLine && endFoldLine.lineNumber > endLineNumber + 1) {
+            endLineNumber = endFoldLine.lineNumber - 1;
+            foldableLineNumber++
+        }
+
+        // if a line is not foldable, the range will be only of the original line instead of the range of the children
         return new vscode.Range(foldableLineNumber, 0, endLineNumber, 0);
     }
 
@@ -377,6 +382,35 @@ export namespace Lines {
             nextLine = findNextLineUpSpacedLeft(document, nextLine.lineNumber, tabSize);
         }
         return lines;
+    }
+
+    export function calculateAllLineLevels(textEditor: vscode.TextEditor, tabSize:number) {
+        // TODO, need to calculate based on column
+        // need to discover indentation size
+        const lineLevels:number[] = []
+        const document = textEditor.document
+        let lineNumber = 0;
+        const documentLength = document.lineCount;
+        const line = document.lineAt(lineNumber);
+        let lastSpacing = calculateLineSpacing(line.text, tabSize);
+        let lineLevel = 1;
+        for(let index = lineNumber; index < documentLength; index++) {
+            const line = document.lineAt(index);
+            if ( !line.isEmptyOrWhitespace ) {
+                const currentSpacing = calculateLineSpacing(line.text, index);
+                if (currentSpacing < lastSpacing) lineLevel--
+                else if (currentSpacing > lastSpacing) lineLevel++
+
+                // in case of uneven indentation, we might get an invalid level.
+                // in such case, reset to 1
+                if (lineLevel < 1) lineLevel = 1
+
+                lastSpacing = currentSpacing;
+            }
+
+            lineLevels.push(lineLevel)
+        }
+        return lineLevels;
     }
 
     export function findAllLinesContainingCurrentWordOrSelection() {
