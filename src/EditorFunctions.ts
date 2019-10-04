@@ -24,6 +24,15 @@ export namespace Region {
             foldableLineNumber++
         }
 
+        if (!endFoldLine) {
+            // we reached end of document
+            endLineNumber = document.lineCount - 1
+
+            // do we have at least one line as child
+            if (endLineNumber > foldableLineNumber)
+                foldableLineNumber++
+        }
+
         // if a line is not foldable, the range will be only of the original line instead of the range of the children
         return new vscode.Range(foldableLineNumber, 0, endLineNumber, 0);
     }
@@ -384,31 +393,22 @@ export namespace Lines {
         return lines;
     }
 
-    export function calculateAllLineLevels(textEditor: vscode.TextEditor, tabSize:number) {
-        // TODO, need to calculate based on column
-        // need to discover indentation size
+    export function calculateAllLineLevels(textEditor: vscode.TextEditor) {
+        const tabSize = +textEditor.options.tabSize
         const lineLevels:number[] = []
         const document = textEditor.document
         let lineNumber = 0;
         const documentLength = document.lineCount;
-        const line = document.lineAt(lineNumber);
-        let lastSpacing = calculateLineSpacing(line.text, tabSize);
-        let lineLevel = 1;
+        let currentLineLevel = 1;
         for(let index = lineNumber; index < documentLength; index++) {
             const line = document.lineAt(index);
             if ( !line.isEmptyOrWhitespace ) {
-                const currentSpacing = calculateLineSpacing(line.text, index);
-                if (currentSpacing < lastSpacing) lineLevel--
-                else if (currentSpacing > lastSpacing) lineLevel++
-
-                // in case of uneven indentation, we might get an invalid level.
-                // in such case, reset to 1
-                if (lineLevel < 1) lineLevel = 1
-
-                lastSpacing = currentSpacing;
+                const currentSpacing = calculateLineSpacing(line.text, tabSize);
+                currentLineLevel = (currentSpacing / tabSize) + 1
+                lineLevels.push(currentLineLevel)
+            } else {
+                lineLevels.push(currentLineLevel)
             }
-
-            lineLevels.push(lineLevel)
         }
         return lineLevels;
     }
