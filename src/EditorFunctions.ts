@@ -426,7 +426,9 @@ export namespace Lines {
             range = document.getWordRangeAtPosition(new vscode.Position(selection.anchor.line, selection.anchor.character));
             return new RegExp('\\b' + document.getText(range) + '\\b');
         } 
-        return new RegExp(document.getText(range));
+        const selectedText = document.getText(range)
+        const escapedForRegexLiteralMatch = escapeRegExp(selectedText)
+        return new RegExp(escapedForRegexLiteralMatch);
     }
 
     export function calculateLineLevel(textEditor: vscode.TextEditor, lineNumber: number) {
@@ -832,7 +834,7 @@ export namespace View {
                 viewEditor:viewEditor,
                 eventOrigin: event.document===scriptDocument?'script':'source',
                 eventType:'edit',
-                editChanges:event.contentChanges
+                editChanges:event.contentChanges as any // prevent TS4104
             })
         })
         vscode.window.onDidChangeTextEditorSelection(event=> {
@@ -901,7 +903,8 @@ export namespace View {
             text: event.text,
             linesDeltaCount: newLines - replacedLines,
             linesStart: event.range.start.line,
-            charStart: event.range.start.character
+            charStart: event.range.start.character,
+            rangeOffset: event.rangeOffset
         }
     }
 
@@ -1202,6 +1205,12 @@ export namespace Glyph {
     export const SEARCH = '\u{1f50d}'
     export const TIMER = '\u{1f558}'
 }
+
+// handle regex escapes for literal matches. https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#Escaping
+function escapeRegExp(string) {
+  return string.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
+
 
 // set context for 'when' expressions in configuration options
 // vscode.commands.executeCommand('setContext', 'myExtKey', true)

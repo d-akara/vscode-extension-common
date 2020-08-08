@@ -1,6 +1,6 @@
 {
   "name": "vscode-extension-common",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Library for building vscode extensions",
   "main": "./out/src/EditorFunctions",
   "scripts": {
@@ -26,11 +26,11 @@
   },
   "homepage": "https://github.com/dakaraphi/vscode-extension-common#readme",
   "engines": {
-    "vscode": "^1.22.0"
+    "vscode": "^1.47.0"
   },
   "devDependencies": {
-    "@types/node": "^8.0.53",
-    "vscode": "^1.1.14"
+    "@types/node": "^14.0.27",
+    "vscode": "^1.1.37"
   },
   "dependencies": {
     "lodash.orderby": "^4.6.0",
