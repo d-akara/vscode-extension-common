@@ -3,8 +3,7 @@ import * as vscode from 'vscode'
 import { MarkdownString } from 'vscode';
 import * as FS from 'fs'
 import * as Path from 'path'
-let orderby = require('lodash.orderby');
-export const debounce = require('lodash.debounce')
+import {orderBy} from 'natural-orderby'
 
 export interface lineInfo {
     line: vscode.TextLine;
@@ -522,20 +521,20 @@ export namespace Modify {
     
     export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
         const lines = Lines.linesFromRange(textEditor.document, range);
-        const sortedLines = orderby(lines, ['text'], null, null);
+        const sortedLines = orderBy(lines, ['text'], null);
     
         replaceLines(textEditor, lines, sortedLines);
     }
     
     export function sortLinesByLength(textEditor: vscode.TextEditor, lines: vscode.TextLine[]) {
-        const sortedLines = orderby(lines, ['text.length'], null, null);
+        const sortedLines = orderBy(lines, ['text.length'], null);
         replaceLines(textEditor, lines, sortedLines);
     }
     
     export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
         const lines = Lines.makeLineInfos(textEditor, ranges);
         
-        const sortedLines = orderby(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null, null);
+        const sortedLines = orderBy(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
     
         replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
         // when we sort the lines, selections are not moved with the lines
@@ -564,6 +563,15 @@ export namespace Modify {
         textEditor.edit(function (editBuilder) {
             editBuilder.replace(range, blockText);
         });
+    }
+
+    export function replaceUsingTransform(textEditor: vscode.TextEditor, ranges: vscode.Range[], transformFunction: (text:string) => string) {
+        textEditor.edit(function (editBuilder) {
+            for (const range of ranges) {
+                const replaceText = transformFunction(textEditor.document.getText(range))
+                editBuilder.replace(range, replaceText);
+            };
+        })
     }
 }
 
