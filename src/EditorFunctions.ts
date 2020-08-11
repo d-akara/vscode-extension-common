@@ -488,6 +488,10 @@ export namespace Lines {
     export function textFromLines(document: vscode.TextDocument, lines: Array<vscode.TextLine>) {
         return lines.map(line=>line.text).reduce((text, lineText)=> text + lineText+'\n', '')
     }
+
+    export function lineEndChars(textEditor: vscode.TextEditor) {
+        return textEditor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n'
+    }
 }
 
 export namespace Modify {
