@@ -219,6 +219,24 @@ export namespace Region {
         }
         return ranges;
     }
+
+    /**
+     * A selection can be in any order in the document.
+     * In some cases, we need our ranges ordered by how the order they appear in the document and not the order they were selected.
+     * @param textEditor 
+     * @param ranges 
+     */
+    export function makeOrderedRangesByStartPosition(ranges: vscode.Range[]) {
+        const orderedRanges = [...ranges]
+        orderedRanges.sort((a,b) => {
+            if (a.start.isBefore(b.start)) 
+                return -1
+            if (a.start.isEqual(b.start))
+                return 0
+            else return 1
+        })
+        return orderedRanges;
+    }
 }
 
 export namespace Lines {
@@ -504,6 +522,16 @@ export namespace Modify {
             });
         })
     }
+
+    export function replaceRangesWithText(textEditor: vscode.TextEditor, rangesOld: Array<vscode.Range>, textsNew: Array<string>) {
+        textEditor.edit(function (editBuilder) {
+            let lineIndex = 0;
+            rangesOld.forEach(range => {
+                editBuilder.replace(range, textsNew[lineIndex]);
+                lineIndex++;
+            });
+        })
+    }
     
     export function reverseLines(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
         if(ranges.length === 1) {
@@ -521,6 +549,10 @@ export namespace Modify {
     
     export function replaceLines(textEditor: vscode.TextEditor, linesOld: Array<vscode.TextLine>, linesNew: Array<vscode.TextLine>) {
         replaceLinesWithText(textEditor, linesOld, linesNew.map(line=>line.text));
+    }
+
+    export function replaceRanges(textEditor: vscode.TextEditor, rangesOld: Array<vscode.Range>, rangesNew: Array<vscode.Range>) {
+        replaceRangesWithText(textEditor, rangesOld, rangesNew.map(range=>textEditor.document.getText(range)));
     }
     
     export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
@@ -545,6 +577,24 @@ export namespace Modify {
         // we update the selections here to match the moved lines
         const updatedRanges = makeRangesFromCombined(textEditor, lines.map(line => line.range), sortedLines.map(line => line.range));
         textEditor.selections = updatedRanges.map(range => new vscode.Selection(range.start, range.end));
+    }
+
+    export function sortLinesByRanges(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
+        const lines = Lines.makeLineInfos(textEditor, ranges);
+        
+        const sortedLines = orderBy(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
+    
+        replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
+        // when we sort the lines, selections are not moved with the lines
+        // we update the selections here to match the moved lines
+        const updatedRanges = makeRangesFromCombined(textEditor, lines.map(line => line.range), sortedLines.map(line => line.range));
+        textEditor.selections = updatedRanges.map(range => new vscode.Selection(range.start, range.end));
+    }
+
+    export function sortRanges(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
+        const orderedRanges = Region.makeOrderedRangesByStartPosition(ranges)
+        const sortedRanges = orderBy(orderedRanges, range => textEditor.document.getText(range), null)
+        replaceRanges(textEditor, orderedRanges, sortedRanges)
     }
     /**
      * Combines the line numbers of a set of ranges with the character positions of another set of ranges
