@@ -596,6 +596,7 @@ export namespace Modify {
         const sortedRanges = orderBy(orderedRanges, range => textEditor.document.getText(range), null)
         replaceRanges(textEditor, orderedRanges, sortedRanges)
     }
+
     /**
      * Combines the line numbers of a set of ranges with the character positions of another set of ranges
      * @param textEditor 
@@ -853,6 +854,20 @@ export namespace View {
         // Move the cursor so that vscode will reapply the word highlighting
         vscode.commands.executeCommand('cursorLeft');
         vscode.commands.executeCommand('cursorRight');
+    }
+
+    export function moveCursorForwardUntilMatch(editor:vscode.TextEditor, parameter:RegExp) {
+        const cursorPosition = editor.selection.anchor
+        const cursorOffset   = editor.document.offsetAt(cursorPosition)
+        const documentText   = editor.document.getText()
+
+        parameter.lastIndex = cursorOffset
+        const matchIndex = parameter.exec(documentText).index
+        
+        if (matchIndex === -1) return
+    
+        const matchPosition = editor.document.positionAt(matchIndex)
+        editor.selection = new vscode.Selection(matchPosition, matchPosition)
     }
 
     export interface LiveDocumentViewEvent {
