@@ -3,7 +3,8 @@ import * as vscode from 'vscode'
 import { MarkdownString } from 'vscode';
 import * as FS from 'fs'
 import * as Path from 'path'
-import {orderBy} from 'natural-orderby'
+import {orderBy as orderByNatural} from 'natural-orderby'
+let orderBy = require('lodash.orderby');
 
 export interface lineInfo {
     line: vscode.TextLine;
@@ -266,6 +267,7 @@ export namespace Lines {
     export function collectLines(document: vscode.TextDocument, startLine: number, endLine: number): Array<vscode.TextLine> {
         const lines = [];
         for (let index = startLine; index <= endLine; index++) {
+            if ((document.lineCount < index + 1) || (index < 0)) continue;  // don't attempt lines beyond document
             lines.push(document.lineAt(index));
         }
         return lines;
@@ -557,20 +559,20 @@ export namespace Modify {
     
     export function sortLinesWithinRange(textEditor: vscode.TextEditor, range: vscode.Range) {
         const lines = Lines.linesFromRange(textEditor.document, range);
-        const sortedLines = orderBy(lines, ['text'], null);
+        const sortedLines = orderByNatural(lines, ['text'], null);
     
         replaceLines(textEditor, lines, sortedLines);
     }
     
     export function sortLinesByLength(textEditor: vscode.TextEditor, lines: vscode.TextLine[]) {
-        const sortedLines = orderBy(lines, ['text.length'], null);
+        const sortedLines = orderBy(lines, ['text.length'], null, null);
         replaceLines(textEditor, lines, sortedLines);
     }
     
     export function sortLinesByColumn(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
         const lines = Lines.makeLineInfos(textEditor, ranges);
         
-        const sortedLines = orderBy(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
+        const sortedLines = orderByNatural(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
     
         replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
         // when we sort the lines, selections are not moved with the lines
@@ -582,7 +584,7 @@ export namespace Modify {
     export function sortLinesByRanges(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
         const lines = Lines.makeLineInfos(textEditor, ranges);
         
-        const sortedLines = orderBy(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
+        const sortedLines = orderByNatural(lines, [line => Region.textFromRangeOrCursorToEndLine(line.line.text, line.range)], null);
     
         replaceLines(textEditor, lines.map(line => line.line), sortedLines.map(line => line.line));
         // when we sort the lines, selections are not moved with the lines
@@ -593,7 +595,7 @@ export namespace Modify {
 
     export function sortRanges(textEditor: vscode.TextEditor, ranges: Array<vscode.Range>) {
         const orderedRanges = Region.makeOrderedRangesByStartPosition(ranges)
-        const sortedRanges = orderBy(orderedRanges, range => textEditor.document.getText(range), null)
+        const sortedRanges = orderByNatural(orderedRanges, range => textEditor.document.getText(range), null)
         replaceRanges(textEditor, orderedRanges, sortedRanges)
     }
 

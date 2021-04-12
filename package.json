@@ -1,6 +1,6 @@
 {
   "name": "vscode-extension-common",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Library for building vscode extensions",
   "main": "./out/src/EditorFunctions",
   "scripts": {
@@ -34,7 +34,8 @@
     "vscode": "^1.1.37"
   },
   "dependencies": {
-    "natural-orderby": "2.0.3"
+    "natural-orderby": "2.0.3",
+    "lodash.orderby": "^4.6.0"
   },
   "types": "./out/src/EditorFunctions.d.ts"
 }
