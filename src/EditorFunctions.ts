@@ -238,6 +238,21 @@ export namespace Region {
         })
         return orderedRanges;
     }
+
+    /**
+     * Filter the content changes by those that are within the visible region
+     * @param contentChanges 
+     * @param visibleRanges 
+     * @returns 
+     */
+    export function contentChangesInVisibleRanges(contentChanges: readonly vscode.TextDocumentContentChangeEvent[], visibleRanges:vscode.Range[]) {
+        const visibleChanges = [] as vscode.TextDocumentContentChangeEvent[]
+        for(const change of contentChanges) {
+            if (visibleRanges.find(range => range.contains(change.range)))
+                visibleChanges.push(change)
+        }
+        return visibleChanges
+    }    
 }
 
 export namespace Lines {
@@ -251,6 +266,14 @@ export namespace Lines {
             lineAndCursors.set(line.lineNumber, lineAndCursor);
         }
         return Array.from(lineAndCursors.values());
+    }
+
+    export function lineNumbersFromRanges(ranges: Array<vscode.Range>) {
+        const lines = new Set<number>()
+        for (const range of ranges) {
+            forEachOfRange(range.start.line, range.end.line, lineNumber => lines.add(lineNumber))
+        }
+        return lines
     }
 
     export function linesFromRanges(document: vscode.TextDocument, ranges: Array<vscode.Range>) {
@@ -412,7 +435,12 @@ export namespace Lines {
         return lines;
     }
 
-    export function calculateAllLineLevels(textEditor: vscode.TextEditor) {
+    /**
+     * Calculates the tab count spacing of all lines.
+     * @param textEditor 
+     * @returns 
+     */
+    export function calculateAllLineTabSpacings(textEditor: vscode.TextEditor) {
         const tabSize = +textEditor.options.tabSize
         const lineLevels:number[] = []
         const document = textEditor.document
@@ -432,6 +460,22 @@ export namespace Lines {
         return lineLevels;
     }
 
+    /**
+     * Calculate the tab count spacing of a line
+     */
+    export function calculateLineTabSpacing(textEditor: vscode.TextEditor, lineNumber: number) {
+        const tabSize = +textEditor.options.tabSize
+        const document = textEditor.document
+
+        const line = document.lineAt(lineNumber);
+        if ( !line.isEmptyOrWhitespace ) {
+            const currentSpacing = calculateLineSpacing(line.text, tabSize);
+            return (currentSpacing / tabSize) + 1
+        } else {
+            return 1 // blank line is same as line with text on first column.
+        }
+    } 
+
     export function findAllLinesContainingCurrentWordOrSelection() {
         const textEditor = vscode.window.activeTextEditor;
         const selection = textEditor.selection;
@@ -450,7 +494,13 @@ export namespace Lines {
         return new RegExp(escapedForRegexLiteralMatch);
     }
 
-    export function calculateLineLevel(textEditor: vscode.TextEditor, lineNumber: number) {
+    /**
+     * determine the level of the line by walking backwards of all lines above with less indentation until most left indentation line found.
+     * @param textEditor 
+     * @param lineNumber 
+     * @returns 
+     */
+    export function calculateLineFoldLevel(textEditor: vscode.TextEditor, lineNumber: number) {
         let level = 1;
         let nextLine = findNextLineUpSpacedLeft(textEditor.document, lineNumber, +textEditor.options.tabSize);
         while(nextLine) {
@@ -460,6 +510,12 @@ export namespace Lines {
         return level;
     }
 
+    /**
+     * Calculates the left padding by number of spaces.  Tabs are converted to spaces for purpose of calculation.
+     * @param lineText 
+     * @param tabSize 
+     * @returns 
+     */
     export function calculateLineSpacing(lineText: string, tabSize: number): number {
         let spacing = 0;
         for(let index = 0; index < lineText.length; index++) {
@@ -511,6 +567,17 @@ export namespace Lines {
 
     export function lineEndChars(textEditor: vscode.TextEditor) {
         return textEditor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n'
+    }
+
+    /**
+     * Get the set of line numbers that changed from a content change event
+     */
+    export function linesChanged(contentChanges: readonly vscode.TextDocumentContentChangeEvent[]) {
+        const lines = new Set<number>()
+        for (const change of contentChanges) {
+            forEachOfRange(change.range.start.line, change.range.end.line, lineNumber => lines.add(lineNumber))
+        }
+        return lines
     }
 }
 
@@ -635,6 +702,7 @@ export namespace Modify {
 export namespace View {
     // TODO - might be useful, how to render decoration on blank line offset
     // https://github.com/CoenraadS/BracketPair/blob/d60719cc8bf0e115a2d463b7b58b14bfc849220a/src/settings.ts#L264-L266
+
     export function createGutterDecorator(lineNumber:number, contentText:string, width:string):vscode.DecorationOptions {
         const posStart = new vscode.Position(lineNumber,0);
         
@@ -1289,7 +1357,10 @@ export namespace Glyph {
 function escapeRegExp(string) {
   return string.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
-
+function forEachOfRange(start:number, end:number, fn: (value) => void) {
+    end+=1; // make range inclusive of end so that (1,1) includes 1.
+    Array.from({length: (end - start)}, (v, k) => k + start).forEach(value => fn(value))
+}
 
 // set context for 'when' expressions in configuration options
 // vscode.commands.executeCommand('setContext', 'myExtKey', true)
