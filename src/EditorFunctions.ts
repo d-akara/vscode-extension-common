@@ -240,6 +240,18 @@ export namespace Region {
     }
 
     /**
+     * Make a new range that is the visible range expanded above and below by the number of lines specified by expandSize
+     */
+    export function makeExpandedVisibleRange(textEditor:vscode.TextEditor, expandSize: number) {
+        const visibleRanges = textEditor.visibleRanges;
+        const visibleRange = visibleRanges.reduce((prev, curr) => curr.union(prev), visibleRanges[0])
+        const startLine = Math.max(0, visibleRange.start.line - expandSize) 
+        const endLine = Math.min(textEditor.document.lineCount - 1, visibleRange.end.line + expandSize) 
+
+        return new vscode.Range(startLine, 0, endLine, 0)
+    }
+
+    /**
      * Filter the content changes by those that are within the visible region
      * @param contentChanges 
      * @param visibleRanges 
@@ -274,6 +286,10 @@ export namespace Lines {
             forEachOfRange(range.start.line, range.end.line, lineNumber => lines.add(lineNumber))
         }
         return lines
+    }
+
+    export function forEachLineNumberOfRange(range: vscode.Range, fn: (line:number) => void) {
+        forEachOfRange(range.start.line, range.end.line, lineNumber => fn(lineNumber))
     }
 
     export function linesFromRanges(document: vscode.TextDocument, ranges: Array<vscode.Range>) {
