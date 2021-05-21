@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/dakaraphi/vscode-extension-common#readme",
   "engines": {
-    "vscode": "^1.47.0"
+    "vscode": "^1.56.0"
   },
   "devDependencies": {
     "@types/node": "^14.0.27",

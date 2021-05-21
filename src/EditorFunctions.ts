@@ -1154,8 +1154,44 @@ export namespace View {
         children?: TreeItemActionable[]
         childrenResolver?: ()=>Thenable<TreeItemActionable[]>  // TODO - not implemented
     }
+
+
+    export interface LabelBuilder {
+        t(value:string):LabelBuilder
+        h(value:string):LabelBuilder
+        label():vscode.TreeItemLabel
+    }
+    
+    export function makeLabelHighlightBuilder():LabelBuilder {
+        let text = ''
+        let highlights = []
+        let currentIndex = 0
+        return {
+            t(value:string) {
+                text += value
+                currentIndex += value.length
+                return this
+            },
+            h(value:string) {
+                text += value
+                const highlightLength = value.length;
+                highlights.push([currentIndex, currentIndex + highlightLength])
+                currentIndex += highlightLength
+                return this
+            },
+            label(): vscode.TreeItemLabel {
+                return {
+                    label: text,
+                    highlights: highlights
+                }
+            }
+        }
+    }
+
+    export type TreeItemUpdateRender = (item:TreeItemActionable) => void
+    
     export interface TreeItemActionable extends TreeWithChildren , vscode.TreeItem {
-        labelResolver?: (TreeItemActionable) => string
+        updateRender?: TreeItemUpdateRender
         metadata?: any
     }
    
@@ -1201,8 +1237,7 @@ export namespace View {
             getTreeItem: (treeItem:TreeItemActionable) => {
                 if (treeItem.children && !treeItem.collapsibleState)
                     treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed
-                if (treeItem.labelResolver)
-                    treeItem.label = treeItem.labelResolver(treeItem)
+                treeItem.updateRender?.(treeItem)
                 return treeItem
             },
             getParent: (treeItem:TreeItemActionable) => {
