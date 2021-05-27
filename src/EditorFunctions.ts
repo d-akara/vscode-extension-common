@@ -4,12 +4,27 @@ import { MarkdownString } from 'vscode';
 import * as FS from 'fs'
 import * as Path from 'path'
 import {orderBy as orderByNatural} from 'natural-orderby'
+export * as ViewportDecorator from './ViewportDecorator'
 let orderBy = require('lodash.orderby');
 
 export interface lineInfo {
     line: vscode.TextLine;
     range: vscode.Range;
 }
+
+export interface Disposable {
+    dispose(): any
+}
+
+export function makeDisposable(disposables: Disposable[], selfDisposable?: ()=> void) {
+    return {
+        dispose() {
+            disposables.forEach(d => d.dispose())
+            selfDisposable?.()
+        }
+    }
+}
+
 const ICON_PATHS = new Map<string, string>()
 const EMPTY_RANGE = new vscode.Range(new vscode.Position(0,0), new vscode.Position(0,1));
 
@@ -718,7 +733,6 @@ export namespace Modify {
 export namespace View {
     // TODO - might be useful, how to render decoration on blank line offset
     // https://github.com/CoenraadS/BracketPair/blob/d60719cc8bf0e115a2d463b7b58b14bfc849220a/src/settings.ts#L264-L266
-
     export function createGutterDecorator(lineNumber:number, contentText:string, width:string):vscode.DecorationOptions {
         const posStart = new vscode.Position(lineNumber,0);
         
