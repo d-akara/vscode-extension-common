@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { Region, Lines, Disposable, makeDisposable} from './EditorFunctions'
 
-export interface DecorationContainer {
+export interface DecorationContainer extends Disposable {
     addType(id: string, type:vscode.DecorationRenderOptions)
     addDecorator(typeId: string, decorator: vscode.DecorationOptions | vscode.Range)
     renderAndFlush(activeEditor: vscode.TextEditor)
+    dispose() 
 }
 
 export interface DecoratorTypeAndDecorators {
@@ -13,6 +14,7 @@ export interface DecoratorTypeAndDecorators {
 }
 
 export function makeDecorationContainer():DecorationContainer {
+    const decoratedEditors = new Set<vscode.TextEditor>()
     const decoratorTypes: Map<string, DecoratorTypeAndDecorators> = new Map()
     return {
         addType(id: string, type:vscode.DecorationRenderOptions) {
@@ -28,10 +30,22 @@ export function makeDecorationContainer():DecorationContainer {
         },
 
         renderAndFlush(activeEditor: vscode.TextEditor) {
+            decoratedEditors.add(activeEditor)
             decoratorTypes.forEach(decorationType => {
                 activeEditor.setDecorations(decorationType.type, decorationType.decorators);
                 decorationType.decorators = [] // flush for next use.
             });
+        }, 
+
+        dispose() {
+            decoratedEditors.forEach(editor => {
+                decoratorTypes.forEach(decorationType => {
+                    decorationType.decorators = []
+                    editor.setDecorations(decorationType.type, decorationType.decorators);
+                });
+            })
+            decoratedEditors.clear()
+            decoratorTypes.clear()
         }
     }
 }
@@ -45,24 +59,24 @@ export function activateViewportDecorators(decorationContainer: DecorationContai
         activeEditor = editor;
         if (!shouldDecorateDocument(activeEditor)) return
 
-        triggerUpdateDecorations();
+        triggerUpdateDecorations(activeEditor);
     }, null, disposables);
 
     vscode.window.onDidChangeTextEditorVisibleRanges(event => {
         if (!activeEditor || !shouldDecorateDocument(activeEditor)) return
 
         if (event.visibleRanges.length > 0) {
-            triggerUpdateDecorations();
+            triggerUpdateDecorations(activeEditor);
         }       
     }, null, disposables)
 
     let timeout = null;
-    function triggerUpdateDecorations(contentChanges?: readonly vscode.TextDocumentContentChangeEvent[]) {
+    function triggerUpdateDecorations(editor:vscode.TextEditor) {
         if (timeout) {clearTimeout(timeout)}
 
         timeout = setTimeout(()=> {
             timeout = null;
-            updateDecorations(activeEditor, decorationContainer)
+            updateDecorations(editor, decorationContainer)
         }, 100);
     }
 
@@ -76,6 +90,13 @@ export function activateViewportDecorators(decorationContainer: DecorationContai
     
         decorationContainer.renderAndFlush(activeEditor)
     }
-    
-    return makeDisposable(disposables)
+
+    // colorize on initial activation
+    vscode.window.visibleTextEditors.forEach(editor => {
+        if (shouldDecorateDocument(editor)) {
+            triggerUpdateDecorations(editor)
+        }
+    })
+
+    return makeDisposable(disposables, ()=> decorationContainer.dispose())
 }

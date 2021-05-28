@@ -1316,6 +1316,7 @@ export namespace View {
         rootTreeItem: TreeItemRoot
         findTreeItem(isFound: (treeItem:TreeItemActionable) => boolean): TreeItemActionable
         revealItem(treeItem: vscode.TreeItem, options?: { select?: boolean })
+        removeTreeItem(treeItem: TreeItemActionable)
         removeTreeItems(parent: TreeItemActionable, shouldRemove: (treeItem:TreeItemActionable, index:number) => boolean)
         forEachTreeItem(onTreeItem: (treeItem:TreeItemActionable) => void)
         update: (treeItem?:TreeItemActionable) => void
