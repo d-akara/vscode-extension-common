@@ -134,6 +134,16 @@ export namespace Region {
         return range;
     }
 
+    export function expandRangeToLineIfEmpty(document: vscode.TextDocument, range: vscode.Range) {
+        if (range.isEmpty)
+            return expandRangeFullLineWidth(document, range)
+        return range;
+    }
+
+    export function expandRangesToLineIfEmpty(document: vscode.TextDocument, ranges: vscode.Range[]) {
+        return ranges.map(range => expandRangeToLineIfEmpty(document, range))
+    }
+
     export function makeVerticalRangesWithinBlock(textEditor: vscode.TextEditor, ranges: vscode.Range[]) {
         if (ranges.length > 1) return ranges;
 
